@@ -32,6 +32,8 @@ If `api_key` is left empty, the node fails immediately with a clear error instea
 
 ## Node reference
 
+Every node's display name in ComfyUI's search/menu is prefixed with **"Superside "** (e.g. `Superside Seedream V5 Pro Edit`, `Superside Bria Background Standardizer`) - type "Superside" in the node search to see the whole set.
+
 Nodes are grouped by task below. For every node: **Inputs** lists required inputs first, then optional ones (with defaults); **Outputs** lists the return values in order.
 
 ### Image editing & generation
