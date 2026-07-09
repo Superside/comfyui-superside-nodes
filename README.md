@@ -2,6 +2,26 @@
 
 Custom ComfyUI nodes wrapping [fal.ai](https://fal.ai) models for image editing, image-to-video, upscaling, vision/language, and region selection - built for Superside production workflows.
 
+## Repository access
+
+This repo is private. To clone it you first need to be added as a collaborator (or be a member of a team that has access):
+
+- Ask a repo admin to add you: repo **Settings → Collaborators and teams → Add people** (or **Add teams**).
+
+Once you have access, clone it:
+
+```
+git clone https://github.com/Superside/comfyui-superside-nodes.git
+```
+
+If you have a modern Git install (Git for Windows/Mac, which bundles **Git Credential Manager**), this opens a browser window to log into GitHub the first time - no token needed. If you use SSH instead:
+
+```
+git clone git@github.com:Superside/comfyui-superside-nodes.git
+```
+
+(requires your SSH key to already be added to your GitHub account). Token-based HTTPS auth (`git clone https://<token>@github.com/...`) is only needed in environments without a browser, e.g. headless servers or CI.
+
 ## Install
 
 1. Copy (or `git clone`) this folder into your ComfyUI `custom_nodes` directory:
