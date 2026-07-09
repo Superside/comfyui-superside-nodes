@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 MAX_SPLITS = 10
 
 
-class PromptSplitterNode:
+class SupersidePromptSplitterNode:
     """
     Splits a prompt string by a configurable separator symbol into up to 10 individual
     STRING outputs. Unused slots return an empty string. Displays the split result in the UI.

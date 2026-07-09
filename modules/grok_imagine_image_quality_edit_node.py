@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class GrokImagineImageQualityEditNode(
+class SupersideGrokImagineImageQualityEditNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """

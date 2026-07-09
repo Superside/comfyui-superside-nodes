@@ -9,7 +9,7 @@ from .base_node import (
 logger = logging.getLogger(__name__)
 
 
-class Wan25ImageToImageNode(
+class SupersideWan25ImageToImageNode(
     SupersideFalNode,
     ImageProcessingMixin,
     APIClientMixin,

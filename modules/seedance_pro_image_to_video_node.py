@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class SeedanceProImageToVideoNode(
+class SupersideSeedanceProImageToVideoNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """

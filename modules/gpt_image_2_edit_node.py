@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class GPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClientMixin):
+class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClientMixin):
     """
     GPT Image 2 Edit Node: Edit images using openai/gpt-image-2/edit.
 

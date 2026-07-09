@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class NanoBananaProEditNode(
+class SupersideNanoBananaProEditNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """

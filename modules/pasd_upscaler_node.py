@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class PASDUpscalerNode(SupersideFalNode, ImageProcessingMixin, APIClientMixin):
+class SupersidePASDUpscalerNode(SupersideFalNode, ImageProcessingMixin, APIClientMixin):
     """
     PASD Upscaler Node: Perform high-quality image super-resolution using PASD-SDXL.
 

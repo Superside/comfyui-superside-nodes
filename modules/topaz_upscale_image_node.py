@@ -10,7 +10,7 @@ from .base_node import (
 logger = logging.getLogger(__name__)
 
 
-class TopazUpscaleImageNode(
+class SupersideTopazUpscaleImageNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """

@@ -19,7 +19,7 @@ from .base_node import (
 logger = logging.getLogger(__name__)
 
 
-class SAM3RegionSelectorNode(
+class SupersideSAM3RegionSelectorNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """

@@ -5,7 +5,7 @@ from .base_node import SupersideFalNode, APIClientMixin, API_KEY_INPUT_SPEC
 logger = logging.getLogger(__name__)
 
 
-class AnyLLMTextNode(SupersideFalNode, APIClientMixin):
+class SupersideAnyLLMTextNode(SupersideFalNode, APIClientMixin):
     """
     Any LLM Text Node: Run text-only chat/completion models via fal.ai OpenRouter.
 

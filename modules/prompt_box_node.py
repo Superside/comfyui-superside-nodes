@@ -1,4 +1,4 @@
-class PromptBoxNode:
+class SupersidePromptBoxNode:
     """
     A simple text box node. Type any prompt and connect the output STRING
     to any node that accepts text input. Displays the text in the node UI.

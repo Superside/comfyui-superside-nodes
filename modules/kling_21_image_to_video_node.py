@@ -9,7 +9,7 @@ from .base_node import (
 logger = logging.getLogger(__name__)
 
 
-class Kling21ImageToVideoNode(
+class SupersideKling21ImageToVideoNode(
     SupersideFalNode,
     ImageProcessingMixin,
     APIClientMixin,

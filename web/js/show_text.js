@@ -5,15 +5,15 @@ import { ComfyWidgets } from "../../../scripts/widgets.js";
 // Mirrors the pattern used by ComfyUI-Custom-Scripts ShowText node.
 
 const TEXT_DISPLAY_NODES = [
-    "PromptBoxNode",
-    "PromptSplitterNode",
-    "AnyLLMVisionNode",
-    "AnyLLMTextNode",
-    "GrokImagineImageQualityEditNode",
-    "SeedreamV45EditNode",
-    "SeedreamV5ProEditNode",
-    "BriaBackgroundStandardizerNode",
-    "BriaReplaceBackgroundNode",
+    "SupersidePromptBoxNode",
+    "SupersidePromptSplitterNode",
+    "SupersideAnyLLMVisionNode",
+    "SupersideAnyLLMTextNode",
+    "SupersideGrokImagineImageQualityEditNode",
+    "SupersideSeedreamV45EditNode",
+    "SupersideSeedreamV5ProEditNode",
+    "SupersideBriaBackgroundStandardizerNode",
+    "SupersideBriaReplaceBackgroundNode",
 ];
 
 app.registerExtension({

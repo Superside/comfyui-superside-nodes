@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class JuggernautFluxProImg2ImgNode(
+class SupersideJuggernautFluxProImg2ImgNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """

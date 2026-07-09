@@ -1,33 +1,33 @@
 try:
     # Normal path when ComfyUI loads this as a proper package.
-    from .modules.any_llm_text_node import AnyLLMTextNode
-    from .modules.any_llm_vision_node import AnyLLMVisionNode
-    from .modules.bria_background_standardizer_node import BriaBackgroundStandardizerNode
-    from .modules.bria_replace_background_node import BriaReplaceBackgroundNode
-    from .modules.florence_2_caption_node import Florence2CaptionNode
-    from .modules.florence_2_region_selector_node import Florence2RegionSelectorNode
-    from .modules.flux_kontext_max_multi_node import FluxKontextMaxMultiImageNode
-    from .modules.gpt_image_2_edit_node import GPTImage2EditNode
-    from .modules.grok_imagine_image_quality_edit_node import GrokImagineImageQualityEditNode
-    from .modules.ideogram_upscale_node import IdeogramUpscaleNode
-    from .modules.juggernaut_flux_pro_img2img_node import JuggernautFluxProImg2ImgNode
-    from .modules.kling_21_image_to_video_node import Kling21ImageToVideoNode
-    from .modules.kling_25_turbo_pro_image_to_video_node import Kling25TurboProImageToVideoNode
-    from .modules.nano_banana_pro_node import NanoBananaProEditNode
-    from .modules.nano_banana_v2_edit_node import NanoBananaV2EditNode
-    from .modules.pasd_upscaler_node import PASDUpscalerNode
-    from .modules.prompt_box_node import PromptBoxNode
-    from .modules.prompt_splitter_node import PromptSplitterNode
-    from .modules.sam_3_region_selector_node import SAM3RegionSelectorNode
-    from .modules.seedance_lite_image_to_video_node import SeedanceLiteImageToVideoNode
-    from .modules.seedance_pro_image_to_video_node import SeedanceProImageToVideoNode
-    from .modules.seedream_v45_edit_node import SeedreamV45EditNode
-    from .modules.seedream_v5_pro_edit_node import SeedreamV5ProEditNode
-    from .modules.seedvr_2_upscale_image_node import SeedVR2UpscaleImageNode
-    from .modules.seedvr_upscale_video_node import SeedVRUpscaleVideoNode
-    from .modules.topaz_upscale_image_node import TopazUpscaleImageNode
-    from .modules.wan_25_image_to_image_node import Wan25ImageToImageNode
-    from .modules.wan_25_image_to_video_node import Wan25ImageToVideoNode
+    from .modules.any_llm_text_node import SupersideAnyLLMTextNode
+    from .modules.any_llm_vision_node import SupersideAnyLLMVisionNode
+    from .modules.bria_background_standardizer_node import SupersideBriaBackgroundStandardizerNode
+    from .modules.bria_replace_background_node import SupersideBriaReplaceBackgroundNode
+    from .modules.florence_2_caption_node import SupersideFlorence2CaptionNode
+    from .modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
+    from .modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
+    from .modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
+    from .modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
+    from .modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
+    from .modules.juggernaut_flux_pro_img2img_node import SupersideJuggernautFluxProImg2ImgNode
+    from .modules.kling_21_image_to_video_node import SupersideKling21ImageToVideoNode
+    from .modules.kling_25_turbo_pro_image_to_video_node import SupersideKling25TurboProImageToVideoNode
+    from .modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
+    from .modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
+    from .modules.pasd_upscaler_node import SupersidePASDUpscalerNode
+    from .modules.prompt_box_node import SupersidePromptBoxNode
+    from .modules.prompt_splitter_node import SupersidePromptSplitterNode
+    from .modules.sam_3_region_selector_node import SupersideSAM3RegionSelectorNode
+    from .modules.seedance_lite_image_to_video_node import SupersideSeedanceLiteImageToVideoNode
+    from .modules.seedance_pro_image_to_video_node import SupersideSeedanceProImageToVideoNode
+    from .modules.seedream_v45_edit_node import SupersideSeedreamV45EditNode
+    from .modules.seedream_v5_pro_edit_node import SupersideSeedreamV5ProEditNode
+    from .modules.seedvr_2_upscale_image_node import SupersideSeedVR2UpscaleImageNode
+    from .modules.seedvr_upscale_video_node import SupersideSeedVRUpscaleVideoNode
+    from .modules.topaz_upscale_image_node import SupersideTopazUpscaleImageNode
+    from .modules.wan_25_image_to_image_node import SupersideWan25ImageToImageNode
+    from .modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
 
 except ImportError:
     # Fallback for environments where this hyphenated folder name doesn't get
@@ -39,95 +39,95 @@ except ImportError:
     if _this_dir not in sys.path:
         sys.path.insert(0, _this_dir)
 
-    from modules.any_llm_text_node import AnyLLMTextNode
-    from modules.any_llm_vision_node import AnyLLMVisionNode
-    from modules.bria_background_standardizer_node import BriaBackgroundStandardizerNode
-    from modules.bria_replace_background_node import BriaReplaceBackgroundNode
-    from modules.florence_2_caption_node import Florence2CaptionNode
-    from modules.florence_2_region_selector_node import Florence2RegionSelectorNode
-    from modules.flux_kontext_max_multi_node import FluxKontextMaxMultiImageNode
-    from modules.gpt_image_2_edit_node import GPTImage2EditNode
-    from modules.grok_imagine_image_quality_edit_node import GrokImagineImageQualityEditNode
-    from modules.ideogram_upscale_node import IdeogramUpscaleNode
-    from modules.juggernaut_flux_pro_img2img_node import JuggernautFluxProImg2ImgNode
-    from modules.kling_21_image_to_video_node import Kling21ImageToVideoNode
-    from modules.kling_25_turbo_pro_image_to_video_node import Kling25TurboProImageToVideoNode
-    from modules.nano_banana_pro_node import NanoBananaProEditNode
-    from modules.nano_banana_v2_edit_node import NanoBananaV2EditNode
-    from modules.pasd_upscaler_node import PASDUpscalerNode
-    from modules.prompt_box_node import PromptBoxNode
-    from modules.prompt_splitter_node import PromptSplitterNode
-    from modules.sam_3_region_selector_node import SAM3RegionSelectorNode
-    from modules.seedance_lite_image_to_video_node import SeedanceLiteImageToVideoNode
-    from modules.seedance_pro_image_to_video_node import SeedanceProImageToVideoNode
-    from modules.seedream_v45_edit_node import SeedreamV45EditNode
-    from modules.seedream_v5_pro_edit_node import SeedreamV5ProEditNode
-    from modules.seedvr_2_upscale_image_node import SeedVR2UpscaleImageNode
-    from modules.seedvr_upscale_video_node import SeedVRUpscaleVideoNode
-    from modules.topaz_upscale_image_node import TopazUpscaleImageNode
-    from modules.wan_25_image_to_image_node import Wan25ImageToImageNode
-    from modules.wan_25_image_to_video_node import Wan25ImageToVideoNode
+    from modules.any_llm_text_node import SupersideAnyLLMTextNode
+    from modules.any_llm_vision_node import SupersideAnyLLMVisionNode
+    from modules.bria_background_standardizer_node import SupersideBriaBackgroundStandardizerNode
+    from modules.bria_replace_background_node import SupersideBriaReplaceBackgroundNode
+    from modules.florence_2_caption_node import SupersideFlorence2CaptionNode
+    from modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
+    from modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
+    from modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
+    from modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
+    from modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
+    from modules.juggernaut_flux_pro_img2img_node import SupersideJuggernautFluxProImg2ImgNode
+    from modules.kling_21_image_to_video_node import SupersideKling21ImageToVideoNode
+    from modules.kling_25_turbo_pro_image_to_video_node import SupersideKling25TurboProImageToVideoNode
+    from modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
+    from modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
+    from modules.pasd_upscaler_node import SupersidePASDUpscalerNode
+    from modules.prompt_box_node import SupersidePromptBoxNode
+    from modules.prompt_splitter_node import SupersidePromptSplitterNode
+    from modules.sam_3_region_selector_node import SupersideSAM3RegionSelectorNode
+    from modules.seedance_lite_image_to_video_node import SupersideSeedanceLiteImageToVideoNode
+    from modules.seedance_pro_image_to_video_node import SupersideSeedanceProImageToVideoNode
+    from modules.seedream_v45_edit_node import SupersideSeedreamV45EditNode
+    from modules.seedream_v5_pro_edit_node import SupersideSeedreamV5ProEditNode
+    from modules.seedvr_2_upscale_image_node import SupersideSeedVR2UpscaleImageNode
+    from modules.seedvr_upscale_video_node import SupersideSeedVRUpscaleVideoNode
+    from modules.topaz_upscale_image_node import SupersideTopazUpscaleImageNode
+    from modules.wan_25_image_to_image_node import SupersideWan25ImageToImageNode
+    from modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
 
 NODE_CLASS_MAPPINGS = {
-    "AnyLLMTextNode": AnyLLMTextNode,
-    "AnyLLMVisionNode": AnyLLMVisionNode,
-    "BriaBackgroundStandardizerNode": BriaBackgroundStandardizerNode,
-    "BriaReplaceBackgroundNode": BriaReplaceBackgroundNode,
-    "Florence2CaptionNode": Florence2CaptionNode,
-    "Florence2RegionSelectorNode": Florence2RegionSelectorNode,
-    "FluxKontextMaxMultiImageNode": FluxKontextMaxMultiImageNode,
-    "GPTImage2EditNode": GPTImage2EditNode,
-    "GrokImagineImageQualityEditNode": GrokImagineImageQualityEditNode,
-    "IdeogramUpscaleNode": IdeogramUpscaleNode,
-    "JuggernautFluxProImg2ImgNode": JuggernautFluxProImg2ImgNode,
-    "Kling21ImageToVideoNode": Kling21ImageToVideoNode,
-    "Kling25TurboProImageToVideoNode": Kling25TurboProImageToVideoNode,
-    "NanoBananaProEditNode": NanoBananaProEditNode,
-    "NanoBananaV2EditNode": NanoBananaV2EditNode,
-    "PASDUpscalerNode": PASDUpscalerNode,
-    "PromptBoxNode": PromptBoxNode,
-    "PromptSplitterNode": PromptSplitterNode,
-    "SAM3RegionSelectorNode": SAM3RegionSelectorNode,
-    "SeedanceLiteImageToVideoNode": SeedanceLiteImageToVideoNode,
-    "SeedanceProImageToVideoNode": SeedanceProImageToVideoNode,
-    "SeedreamV45EditNode": SeedreamV45EditNode,
-    "SeedreamV5ProEditNode": SeedreamV5ProEditNode,
-    "SeedVR2UpscaleImageNode": SeedVR2UpscaleImageNode,
-    "SeedVRUpscaleVideoNode": SeedVRUpscaleVideoNode,
-    "TopazUpscaleImageNode": TopazUpscaleImageNode,
-    "Wan25ImageToImageNode": Wan25ImageToImageNode,
-    "Wan25ImageToVideoNode": Wan25ImageToVideoNode,
+    "SupersideAnyLLMTextNode": SupersideAnyLLMTextNode,
+    "SupersideAnyLLMVisionNode": SupersideAnyLLMVisionNode,
+    "SupersideBriaBackgroundStandardizerNode": SupersideBriaBackgroundStandardizerNode,
+    "SupersideBriaReplaceBackgroundNode": SupersideBriaReplaceBackgroundNode,
+    "SupersideFlorence2CaptionNode": SupersideFlorence2CaptionNode,
+    "SupersideFlorence2RegionSelectorNode": SupersideFlorence2RegionSelectorNode,
+    "SupersideFluxKontextMaxMultiImageNode": SupersideFluxKontextMaxMultiImageNode,
+    "SupersideGPTImage2EditNode": SupersideGPTImage2EditNode,
+    "SupersideGrokImagineImageQualityEditNode": SupersideGrokImagineImageQualityEditNode,
+    "SupersideIdeogramUpscaleNode": SupersideIdeogramUpscaleNode,
+    "SupersideJuggernautFluxProImg2ImgNode": SupersideJuggernautFluxProImg2ImgNode,
+    "SupersideKling21ImageToVideoNode": SupersideKling21ImageToVideoNode,
+    "SupersideKling25TurboProImageToVideoNode": SupersideKling25TurboProImageToVideoNode,
+    "SupersideNanoBananaProEditNode": SupersideNanoBananaProEditNode,
+    "SupersideNanoBananaV2EditNode": SupersideNanoBananaV2EditNode,
+    "SupersidePASDUpscalerNode": SupersidePASDUpscalerNode,
+    "SupersidePromptBoxNode": SupersidePromptBoxNode,
+    "SupersidePromptSplitterNode": SupersidePromptSplitterNode,
+    "SupersideSAM3RegionSelectorNode": SupersideSAM3RegionSelectorNode,
+    "SupersideSeedanceLiteImageToVideoNode": SupersideSeedanceLiteImageToVideoNode,
+    "SupersideSeedanceProImageToVideoNode": SupersideSeedanceProImageToVideoNode,
+    "SupersideSeedreamV45EditNode": SupersideSeedreamV45EditNode,
+    "SupersideSeedreamV5ProEditNode": SupersideSeedreamV5ProEditNode,
+    "SupersideSeedVR2UpscaleImageNode": SupersideSeedVR2UpscaleImageNode,
+    "SupersideSeedVRUpscaleVideoNode": SupersideSeedVRUpscaleVideoNode,
+    "SupersideTopazUpscaleImageNode": SupersideTopazUpscaleImageNode,
+    "SupersideWan25ImageToImageNode": SupersideWan25ImageToImageNode,
+    "SupersideWan25ImageToVideoNode": SupersideWan25ImageToVideoNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "AnyLLMTextNode": "Superside Any LLM Text",
-    "AnyLLMVisionNode": "Superside Any LLM Vision",
-    "BriaBackgroundStandardizerNode": "Superside Bria Background Standardizer (Hex Color)",
-    "BriaReplaceBackgroundNode": "Superside Bria Replace Background",
-    "Florence2CaptionNode": "Superside Florence-2 Detailed Caption",
-    "Florence2RegionSelectorNode": "Superside Florence-2 Smart Region Selector",
-    "FluxKontextMaxMultiImageNode": "Superside Flux Kontext Max Multi-Image Node",
-    "GPTImage2EditNode": "Superside GPT Image 2 Edit",
-    "GrokImagineImageQualityEditNode": "Superside Grok Imagine Image Quality Edit",
-    "IdeogramUpscaleNode": "Superside Ideogram Upscale",
-    "JuggernautFluxProImg2ImgNode": "Superside Juggernaut Flux Pro Image-to-Image",
-    "Kling21ImageToVideoNode": "Superside Kling 2.1 Image-to-Video",
-    "Kling25TurboProImageToVideoNode": "Superside Kling 2.5 Turbo Pro Image-to-Video",
-    "NanoBananaProEditNode": "Superside Nano Banana Pro Edit Node",
-    "NanoBananaV2EditNode": "Superside Nano Banana V2 Edit Node",
-    "PASDUpscalerNode": "Superside PASD Upscaler Node",
-    "PromptBoxNode": "Superside Prompt Box",
-    "PromptSplitterNode": "Superside Prompt Splitter",
-    "SAM3RegionSelectorNode": "Superside SAM 3 Smart Region Selector",
-    "SeedanceLiteImageToVideoNode": "Superside Seedance Lite Image-to-Video",
-    "SeedanceProImageToVideoNode": "Superside Seedance Pro Image-to-Video",
-    "SeedreamV45EditNode": "Superside Seedream V4.5 Edit",
-    "SeedreamV5ProEditNode": "Superside Seedream V5 Pro Edit",
-    "SeedVR2UpscaleImageNode": "Superside SeedVR2 Upscale Image",
-    "SeedVRUpscaleVideoNode": "Superside SeedVR Upscale Video",
-    "TopazUpscaleImageNode": "Superside Topaz Upscale Image",
-    "Wan25ImageToImageNode": "Superside Wan 2.5 Image-to-Image",
-    "Wan25ImageToVideoNode": "Superside Wan 2.5 Image-to-Video",
+    "SupersideAnyLLMTextNode": "Superside Any LLM Text",
+    "SupersideAnyLLMVisionNode": "Superside Any LLM Vision",
+    "SupersideBriaBackgroundStandardizerNode": "Superside Bria Background Standardizer (Hex Color)",
+    "SupersideBriaReplaceBackgroundNode": "Superside Bria Replace Background",
+    "SupersideFlorence2CaptionNode": "Superside Florence-2 Detailed Caption",
+    "SupersideFlorence2RegionSelectorNode": "Superside Florence-2 Smart Region Selector",
+    "SupersideFluxKontextMaxMultiImageNode": "Superside Flux Kontext Max Multi-Image Node",
+    "SupersideGPTImage2EditNode": "Superside GPT Image 2 Edit",
+    "SupersideGrokImagineImageQualityEditNode": "Superside Grok Imagine Image Quality Edit",
+    "SupersideIdeogramUpscaleNode": "Superside Ideogram Upscale",
+    "SupersideJuggernautFluxProImg2ImgNode": "Superside Juggernaut Flux Pro Image-to-Image",
+    "SupersideKling21ImageToVideoNode": "Superside Kling 2.1 Image-to-Video",
+    "SupersideKling25TurboProImageToVideoNode": "Superside Kling 2.5 Turbo Pro Image-to-Video",
+    "SupersideNanoBananaProEditNode": "Superside Nano Banana Pro Edit Node",
+    "SupersideNanoBananaV2EditNode": "Superside Nano Banana V2 Edit Node",
+    "SupersidePASDUpscalerNode": "Superside PASD Upscaler Node",
+    "SupersidePromptBoxNode": "Superside Prompt Box",
+    "SupersidePromptSplitterNode": "Superside Prompt Splitter",
+    "SupersideSAM3RegionSelectorNode": "Superside SAM 3 Smart Region Selector",
+    "SupersideSeedanceLiteImageToVideoNode": "Superside Seedance Lite Image-to-Video",
+    "SupersideSeedanceProImageToVideoNode": "Superside Seedance Pro Image-to-Video",
+    "SupersideSeedreamV45EditNode": "Superside Seedream V4.5 Edit",
+    "SupersideSeedreamV5ProEditNode": "Superside Seedream V5 Pro Edit",
+    "SupersideSeedVR2UpscaleImageNode": "Superside SeedVR2 Upscale Image",
+    "SupersideSeedVRUpscaleVideoNode": "Superside SeedVR Upscale Video",
+    "SupersideTopazUpscaleImageNode": "Superside Topaz Upscale Image",
+    "SupersideWan25ImageToImageNode": "Superside Wan 2.5 Image-to-Image",
+    "SupersideWan25ImageToVideoNode": "Superside Wan 2.5 Image-to-Video",
 }
 
 WEB_DIRECTORY = "web"

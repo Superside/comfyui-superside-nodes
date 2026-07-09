@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class Florence2RegionSelectorNode(
+class SupersideFlorence2RegionSelectorNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """

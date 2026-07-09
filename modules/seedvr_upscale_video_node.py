@@ -8,7 +8,7 @@ from .base_node import (
 logger = logging.getLogger(__name__)
 
 
-class SeedVRUpscaleVideoNode(
+class SupersideSeedVRUpscaleVideoNode(
     SupersideFalNode,
     APIClientMixin,
 ):

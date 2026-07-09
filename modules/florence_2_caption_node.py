@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class Florence2CaptionNode(
+class SupersideFlorence2CaptionNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """
