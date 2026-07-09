@@ -25,11 +25,21 @@ API_KEY_INPUT_SPEC = (
 )
 
 # Endpoints that must be called through fal.ai's queue (submit + poll) instead
-# of the synchronous run() helper. Add an endpoint here if it requires queued
-# execution.
+# of the synchronous run() helper. A single long-held HTTP connection (what
+# run() does under the hood) is prone to mid-flight disconnects on slow
+# generations - the queue's short-lived polling requests are far more
+# resilient for endpoints that commonly take several minutes.
 QUEUED_ENDPOINTS = {
     "openai/gpt-image-2/edit",
+    "bytedance/seedream/v5/pro/edit",
+    "bytedance/seedream/v4.5/edit",
 }
+
+# Without a client-side timeout, fal_client.subscribe() waits indefinitely -
+# a genuinely stuck job would hang the ComfyUI node forever instead of
+# failing with a clear error. 20 minutes comfortably covers the slowest
+# generations we've observed while still giving up eventually.
+QUEUED_CLIENT_TIMEOUT = 1200
 
 
 class SupersideFalNode:
@@ -196,12 +206,14 @@ class APIClientMixin:
         try:
             if endpoint in QUEUED_ENDPOINTS:
                 logger.info(f"Using queued API call to {endpoint}")
-                handle = client.submit(endpoint, arguments=arguments)
-                logger.info("Submitted fal.ai request %s to %s", handle.request_id, endpoint)
-                for status in handle.iter_events(with_logs=False, interval=5.0):
-                    if status.__class__.__name__ == "Completed":
-                        break
-                result = handle.get()
+                result = client.subscribe(
+                    endpoint,
+                    arguments=arguments,
+                    on_enqueue=lambda request_id: logger.info(
+                        "Submitted fal.ai request %s to %s", request_id, endpoint
+                    ),
+                    client_timeout=QUEUED_CLIENT_TIMEOUT,
+                )
             else:
                 logger.info(f"Using synchronous API call to {endpoint}")
                 result = client.run(endpoint, arguments=arguments)
