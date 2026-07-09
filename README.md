@@ -24,6 +24,10 @@ Custom ComfyUI nodes wrapping [fal.ai](https://fal.ai) models for image editing,
    ```
 3. Restart ComfyUI. All nodes appear under the **Superside** category in the node menu.
 
+### Video walkthrough
+
+[![Watch the installation walkthrough](https://img.youtube.com/vi/wcp9fhMJnXA/maxresdefault.jpg)](https://youtu.be/wcp9fhMJnXA)
+
 ## API key
 
 **There is no config file and no environment variable for the fal.ai API key.** Every node has a required `api_key` text input - paste your key directly into that widget on each node. Ask your project lead for the key; it is never stored in this repository.
