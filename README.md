@@ -4,25 +4,25 @@ Custom ComfyUI nodes wrapping [fal.ai](https://fal.ai) models for image editing,
 
 ## Install
 
-1. Clone this repo into your ComfyUI `custom_nodes` directory, then install dependencies.
+1. Clone this repo into your ComfyUI `custom_nodes` directory.
 
-   **Windows (portable install):**
+   **Windows:**
    ```
    cd ComfyUI_windows_portable\ComfyUI\custom_nodes
    git clone https://github.com/Superside/comfyui-superside-nodes.git
-   ..\..\python_embeded\python.exe -m pip install -r comfyui-superside-nodes\requirements.txt
    ```
 
-   **Mac / Linux:**
+   **Mac:**
    ```
    cd ComfyUI/custom_nodes
    git clone https://github.com/Superside/comfyui-superside-nodes.git
-   pip3 install -r comfyui-superside-nodes/requirements.txt
    ```
 
-   Adjust the `python.exe`/`pip3` path above if your ComfyUI install uses its own virtual environment - install `requirements.txt` into whichever Python environment ComfyUI itself runs on, not your system Python.
-
-2. Restart ComfyUI. All nodes appear under the **Superside** category in the node menu.
+2. Install dependencies (into whichever Python environment ComfyUI itself runs on):
+   ```
+   pip install -r requirements.txt
+   ```
+3. Restart ComfyUI. All nodes appear under the **Superside** category in the node menu.
 
 ## API key
 
