@@ -2,6 +2,8 @@
 
 Custom ComfyUI nodes wrapping [fal.ai](https://fal.ai) models for image editing, image-to-video, upscaling, vision/language, and region selection - built for Superside production workflows.
 
+[![Watch the installation walkthrough](docs/video_thumbnail.png)](https://youtu.be/wcp9fhMJnXA)
+
 ## Install
 
 1. Clone this repo into your ComfyUI `custom_nodes` directory.
@@ -23,10 +25,6 @@ Custom ComfyUI nodes wrapping [fal.ai](https://fal.ai) models for image editing,
    pip install -r requirements.txt
    ```
 3. Restart ComfyUI. All nodes appear under the **Superside** category in the node menu.
-
-### Video walkthrough
-
-[![Watch the installation walkthrough](https://img.youtube.com/vi/wcp9fhMJnXA/maxresdefault.jpg)](https://youtu.be/wcp9fhMJnXA)
 
 ## API key
 
