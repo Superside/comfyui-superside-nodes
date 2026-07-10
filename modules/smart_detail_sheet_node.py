@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 
 import numpy as np
 import torch
@@ -148,14 +147,19 @@ class SupersideSmartDetailSheetNode(
         output_text = result.get("output", "")
         logger.debug(f"Vision model raw output: {output_text}")
 
-        match = re.search(r"\[.*\]", output_text, re.DOTALL)
-        if not match:
+        # Some models (e.g. gemini-2.5-pro) append reasoning/notes after the
+        # JSON array. A greedy regex from the first "[" to the last "]" would
+        # swallow that trailing text and fail to parse, so instead decode
+        # just the JSON value starting at the first "[" and ignore whatever
+        # follows it.
+        start = output_text.find("[")
+        if start == -1:
             raise RuntimeError(
                 f"Vision model did not return a parseable JSON array. Raw output: {output_text[:500]}"
             )
 
         try:
-            details = json.loads(match.group(0))
+            details, _ = json.JSONDecoder().raw_decode(output_text, start)
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Failed to parse detail JSON from vision model: {e}") from e
 
