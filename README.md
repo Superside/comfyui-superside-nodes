@@ -189,6 +189,13 @@ Broader vocabulary than Florence (garments, vehicle parts, accessories) plus mul
 - **Inputs:** `image`, `region_type` (19 presets incl. `object`), `api_key` · optional: `custom_text`, `selection_mode` (largest/first/merge_all), `padding_percent`, `return_rect_mask`, `return_multiple_masks`, `max_masks`, `include_scores`, `include_boxes`
 - **Outputs:** `mask` (MASK), `mask_image` (IMAGE), `info` (STRING, JSON), `center_x`, `center_y`, `crop_width`, `crop_height` (INT)
 
+### Product detail sheets
+
+#### Smart Detail Sheet (`SupersideSmartDetailSheetNode`)
+Uses a vision LLM to find the most visually interesting close-up details in a product photo (textures, logos, hinges, pads, seams, materials, etc), crops each one at native resolution with generous surrounding context, upscales the crops locally (Lanczos, no extra API call), and composites everything into one final image: the original photo plus the enlarged detail callouts - like a product spec sheet. Layout adapts to the original's aspect ratio (side column for portrait, row below for landscape/square), and the detail block is kept within a size range relative to the original so it's always legible without ever overwhelming the source photo. Crops that land on a flat/blank region (a missed bounding box) are automatically discarded.
+- **Inputs:** `image`, `api_key` · optional: `num_details` (1-6, default 3), `detail_hint` (free text to steer the model), `crop_scale` (1-4x, default 2), `model` (gemini-2.5-flash/gemini-2.5-pro/gpt-4o/claude-sonnet-4.6, default gpt-4o), `padding_percent` (context margin around each detected detail, default 200%)
+- **Outputs:** `image` (IMAGE, the composited sheet), `info` (STRING, JSON with the kept details, discard count, and settings used)
+
 ### Utility (no API key needed)
 
 These two nodes make no fal.ai calls, so they don't have an `api_key` input.
@@ -210,7 +217,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <29 node files>
+│   └── <30 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md

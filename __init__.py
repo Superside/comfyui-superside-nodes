@@ -26,6 +26,7 @@ try:
     from .modules.seedream_v5_pro_edit_node import SupersideSeedreamV5ProEditNode
     from .modules.seedvr_2_upscale_image_node import SupersideSeedVR2UpscaleImageNode
     from .modules.seedvr_upscale_video_node import SupersideSeedVRUpscaleVideoNode
+    from .modules.smart_detail_sheet_node import SupersideSmartDetailSheetNode
     from .modules.topaz_upscale_image_node import SupersideTopazUpscaleImageNode
     from .modules.wan_25_image_to_image_node import SupersideWan25ImageToImageNode
     from .modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
@@ -66,6 +67,7 @@ except ImportError:
     from modules.seedream_v5_pro_edit_node import SupersideSeedreamV5ProEditNode
     from modules.seedvr_2_upscale_image_node import SupersideSeedVR2UpscaleImageNode
     from modules.seedvr_upscale_video_node import SupersideSeedVRUpscaleVideoNode
+    from modules.smart_detail_sheet_node import SupersideSmartDetailSheetNode
     from modules.topaz_upscale_image_node import SupersideTopazUpscaleImageNode
     from modules.wan_25_image_to_image_node import SupersideWan25ImageToImageNode
     from modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
@@ -97,6 +99,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideSeedreamV5ProEditNode": SupersideSeedreamV5ProEditNode,
     "SupersideSeedVR2UpscaleImageNode": SupersideSeedVR2UpscaleImageNode,
     "SupersideSeedVRUpscaleVideoNode": SupersideSeedVRUpscaleVideoNode,
+    "SupersideSmartDetailSheetNode": SupersideSmartDetailSheetNode,
     "SupersideTopazUpscaleImageNode": SupersideTopazUpscaleImageNode,
     "SupersideWan25ImageToImageNode": SupersideWan25ImageToImageNode,
     "SupersideWan25ImageToVideoNode": SupersideWan25ImageToVideoNode,
@@ -129,6 +132,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideSeedreamV5ProEditNode": "Superside Seedream V5 Pro Edit",
     "SupersideSeedVR2UpscaleImageNode": "Superside SeedVR2 Upscale Image",
     "SupersideSeedVRUpscaleVideoNode": "Superside SeedVR Upscale Video",
+    "SupersideSmartDetailSheetNode": "Superside Smart Detail Sheet",
     "SupersideTopazUpscaleImageNode": "Superside Topaz Upscale Image",
     "SupersideWan25ImageToImageNode": "Superside Wan 2.5 Image-to-Image",
     "SupersideWan25ImageToVideoNode": "Superside Wan 2.5 Image-to-Video",
