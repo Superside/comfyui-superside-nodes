@@ -47,13 +47,20 @@ class SupersideSmartDetailSheetNode(
                 "api_key": API_KEY_INPUT_SPEC,
             },
             "optional": {
+                "product_category": (
+                    ["auto", "eyewear"],
+                    {
+                        "default": "auto",
+                        "tooltip": "\"auto\" lets the model freely pick whichever details look most interesting. \"eyewear\" instead forces exactly 3 fixed, reliable zones every time: the nose pad + its mounting clip, the bridge/hinge assembly (with any decorative hardware), and a temple tip - overriding num_details.",
+                    },
+                ),
                 "num_details": (
                     "INT",
                     {
                         "default": 3,
                         "min": 1,
                         "max": 6,
-                        "tooltip": "How many detail close-ups to find and crop.",
+                        "tooltip": "How many detail close-ups to find and crop. Ignored when product_category is \"eyewear\" (always 3 fixed zones).",
                     },
                 ),
                 "detail_hint": (
@@ -102,36 +109,47 @@ class SupersideSmartDetailSheetNode(
         "fal-ai/any-llm/vision",
     ]
 
-    def _detect_details(self, client, model, image_url, num_details, detail_hint):
-        hint_line = f"\n\nAdditional guidance: {detail_hint.strip()}" if detail_hint and detail_hint.strip() else ""
-        prompt = (
-            f"Analyze this product photo and identify exactly {num_details} of the most "
-            "visually interesting close-up details worth showcasing to a buyer.\n\n"
-            "First silently identify what kind of product this is, then pick the "
-            "details that matter most for that specific category. For example: on "
-            "eyewear, prioritize: the joints/unions where parts connect (e.g. where "
-            "the temple meets the front); the bridge together with its nose pads "
-            "(the piece over the nose - always include the nose pads when framing "
-            "the bridge); the nose pad's own mounting clip/arm where it attaches to "
-            "the lens or frame; the temple arms (the full pieces extending back to "
-            "the ears, not just their tips); the points where the lens itself "
-            "mounts directly to the metal frame via small screws (common on "
-            "rimless/drill-mount designs); and any decorative or branded hardware "
-            "such as ornamental rivets, shaped screws (hearts, logos, engravings) "
-            "at the hinge or bridge. On footwear, prioritize stitching, sole "
-            "texture, laces, and logos; on bags, prioritize hardware, zippers, and "
-            "seams; on apparel, prioritize fabric weave, seams, buttons, and "
-            "zippers. More generally, look for textures, materials, logos, joints, "
-            f"pads, seams, stitching, or other unique design elements.{hint_line}\n\n"
-            "Return ONLY a JSON array, no other text, no markdown code fences, in "
-            "this exact format:\n"
-            '[{"label": "short description", "x1": 0, "y1": 0, "x2": 0, "y2": 0}, ...]\n\n'
-            "Coordinates are normalized to a 0-1000 scale where (0,0) is the "
-            "top-left corner and (1000,1000) is the bottom-right corner of the "
-            "image. Each box should tightly frame just that one detail - padding "
-            f"for context is added separately afterwards. Return exactly {num_details} entries."
-        )
+    # Fixed, reliable zones for eyewear - located (in this order) via
+    # Florence-2's grounding endpoint when product_category="eyewear",
+    # instead of asking a general vision LLM to guess coordinates from text.
+    # In testing, the LLM approach was unreliable for this specific task -
+    # even with one isolated call per zone, it tended to collapse "nose pad"
+    # and "bridge/hinge" onto the same spot. Florence-2 is a dedicated
+    # grounding model (already used by SupersideFlorence2RegionSelectorNode)
+    # and located these short, literal queries accurately and distinctly.
+    # (query, display_label) - query is what's sent to Florence, label is
+    # what shows up in the node's output/info.
+    EYEWEAR_FIXED_ZONES = [
+        ("nose pad", "nose pad and mounting clip"),
+        ("hinge screw", "hinge screw joint"),
+        ("temple tip", "temple tip"),
+    ]
 
+    # Florence-2 grounding often returns one or two near-whole-image boxes
+    # as a weak first guess alongside genuinely specific ones. A candidate
+    # box covering more than this fraction of the image's area is treated
+    # as one of those broad guesses and skipped in favor of tighter boxes.
+    FLORENCE_MAX_BOX_AREA_RATIO = 0.15
+
+    # A returned box whose x-span or y-span (on the 0-1000 scale) is smaller
+    # than this is treated as degenerate (effectively a single point, giving
+    # the crop's center no real signal) and triggers a retry rather than
+    # being used as-is.
+    MIN_BOX_SPAN = 5.0
+
+    # Two boxes whose centers (on the 0-1000 scale) are closer than this are
+    # treated as the same real-world spot - their crops would otherwise be
+    # near-duplicates of one area instead of two distinct details.
+    MIN_CENTER_SEPARATION = 80.0
+
+    def _request_details_json(self, client, model, image_url, prompt, expected_count, check_collisions):
+        """
+        Call the vision model with `prompt` and parse a JSON array of exactly
+        `expected_count` detail boxes out of it, retrying with a sharper
+        reminder if the model returns prose instead of JSON, a degenerate
+        (zero-size) box, or - when check_collisions is True - two boxes
+        whose centers land on nearly the same spot.
+        """
         arguments = {
             "prompt": prompt,
             "image_urls": [image_url],
@@ -142,18 +160,17 @@ class SupersideSmartDetailSheetNode(
             "reasoning": True,
         }
 
-        # A model occasionally ignores the "JSON only" instruction and
-        # returns prose instead (more common on the any-llm/vision fallback
-        # endpoint). Retry once with a sharper reminder before giving up.
         MAX_ATTEMPTS = 2
         last_parse_error = None
         for attempt in range(MAX_ATTEMPTS):
             call_arguments = dict(arguments)
             if attempt > 0:
                 call_arguments["prompt"] = (
-                    arguments["prompt"] + "\n\nIMPORTANT: your previous response did not "
-                    "contain a valid JSON array. Respond with NOTHING except the raw JSON "
-                    "array - no headings, no bullet points, no explanation."
+                    arguments["prompt"] + "\n\nIMPORTANT: your previous response was rejected "
+                    f"({last_parse_error}). Respond with NOTHING except the raw JSON array - "
+                    "no headings, no bullet points, no explanation. Every box must have real "
+                    "width and height, and every zone must be centered on a clearly different "
+                    "spot on the frame - never return the same location twice."
                 )
 
             result = None
@@ -188,17 +205,155 @@ class SupersideSmartDetailSheetNode(
 
             try:
                 details, _ = json.JSONDecoder().raw_decode(output_text, start)
-                break
             except json.JSONDecodeError as e:
                 last_parse_error = RuntimeError(f"Failed to parse detail JSON from vision model: {e}")
                 logger.warning(f"Attempt {attempt + 1}: {last_parse_error}")
+                continue
+
+            degenerate = [
+                d for d in details
+                if isinstance(d, dict)
+                and (abs(float(d.get("x2", 0)) - float(d.get("x1", 0))) < self.MIN_BOX_SPAN
+                     or abs(float(d.get("y2", 0)) - float(d.get("y1", 0))) < self.MIN_BOX_SPAN)
+            ]
+            if degenerate:
+                last_parse_error = RuntimeError(
+                    f"Vision model returned {len(degenerate)} zero-size/degenerate box(es): "
+                    f"{[d.get('label') for d in degenerate]}"
+                )
+                logger.warning(f"Attempt {attempt + 1}: {last_parse_error}")
+                continue
+
+            if check_collisions:
+                # Distinct zones (e.g. eyewear's nose pad vs. bridge/hinge)
+                # should land on clearly different spots. If two boxes'
+                # centers collapse onto nearly the same point, their crops
+                # end up as near-duplicates of the same real-world area -
+                # treat that as a failure worth retrying rather than
+                # silently returning two copies of one detail.
+                centers = [
+                    ((float(d.get("x1", 0)) + float(d.get("x2", 0))) / 2.0,
+                     (float(d.get("y1", 0)) + float(d.get("y2", 0))) / 2.0)
+                    for d in details if isinstance(d, dict)
+                ]
+                collided = False
+                for i in range(len(centers)):
+                    for j in range(i + 1, len(centers)):
+                        dx = centers[i][0] - centers[j][0]
+                        dy = centers[i][1] - centers[j][1]
+                        if (dx * dx + dy * dy) ** 0.5 < self.MIN_CENTER_SEPARATION:
+                            collided = True
+                            break
+                    if collided:
+                        break
+
+                if collided:
+                    last_parse_error = RuntimeError(
+                        f"Vision model returned overlapping/duplicate zones: {[d.get('label') for d in details]}"
+                    )
+                    logger.warning(f"Attempt {attempt + 1}: {last_parse_error}")
+                    continue
+
+            break
         else:
             raise last_parse_error
 
         if not isinstance(details, list) or not details:
             raise RuntimeError("Vision model returned no usable details.")
 
-        return details[:num_details]
+        return details[:expected_count]
+
+    def _detect_zone_via_florence(self, client, image_url, image_width, image_height, query, label):
+        """
+        Locate one short text query (e.g. "nose pad") with Florence-2's
+        grounding endpoint and return it as a detail dict in this node's
+        usual 0-1000 normalized x1/y1/x2/y2 format.
+        """
+        result = self.call_api(
+            client,
+            "fal-ai/florence-2-large/caption-to-phrase-grounding",
+            {"image_url": image_url, "text_input": query},
+        )
+        bboxes = result.get("results", {}).get("bboxes", [])
+        if not bboxes:
+            raise RuntimeError(f"Florence-2 returned no bounding box for '{query}'.")
+
+        image_area = image_width * image_height
+        candidates = []
+        for b in bboxes:
+            if not isinstance(b, dict) or not all(k in b for k in ("x", "y", "w", "h")):
+                continue
+            area = float(b["w"]) * float(b["h"])
+            candidates.append((area, b))
+
+        if not candidates:
+            raise RuntimeError(f"Florence-2 returned no usable bounding box for '{query}'.")
+
+        # Florence often returns one or two broad, near-whole-image boxes as
+        # a weak first guess alongside genuinely specific ones - prefer the
+        # tightest box under the area threshold; only fall back to the
+        # smallest overall if every candidate happens to be that broad.
+        specific = [c for c in candidates if c[0] < image_area * self.FLORENCE_MAX_BOX_AREA_RATIO]
+        area, best = min(specific or candidates, key=lambda c: c[0])
+
+        x1 = float(best["x"])
+        y1 = float(best["y"])
+        x2 = x1 + float(best["w"])
+        y2 = y1 + float(best["h"])
+
+        return {
+            "label": label,
+            "x1": x1 / image_width * 1000.0,
+            "y1": y1 / image_height * 1000.0,
+            "x2": x2 / image_width * 1000.0,
+            "y2": y2 / image_height * 1000.0,
+        }
+
+    def _detect_details(
+        self, client, model, image_url, num_details, detail_hint, product_category,
+        image_width=None, image_height=None,
+    ):
+        if product_category == "eyewear":
+            return [
+                self._detect_zone_via_florence(client, image_url, image_width, image_height, query, label)
+                for query, label in self.EYEWEAR_FIXED_ZONES
+            ]
+
+        hint_line = f"\n\nAdditional guidance: {detail_hint.strip()}" if detail_hint and detail_hint.strip() else ""
+        prompt = (
+            f"Analyze this product photo and identify exactly {num_details} of the most "
+            "visually interesting close-up details worth showcasing to a buyer.\n\n"
+            "First silently identify what kind of product this is, then pick the "
+            "details that matter most for that specific category. For example: on "
+            "eyewear, prioritize: the joints/unions where parts connect (e.g. where "
+            "the temple meets the front); the bridge together with its nose pads "
+            "(the piece over the nose - always include the nose pads when framing "
+            "the bridge); the nose pad's own mounting clip/arm where it attaches to "
+            "the lens or frame; the temple arms (the full pieces extending back to "
+            "the ears, not just their tips); the points where the lens itself "
+            "mounts directly to the metal frame via small screws (common on "
+            "rimless/drill-mount designs); and any decorative or branded hardware "
+            "such as ornamental rivets, shaped screws (hearts, logos, engravings) "
+            "at the hinge or bridge. On footwear, prioritize stitching, sole "
+            "texture, laces, and logos; on bags, prioritize hardware, zippers, and "
+            "seams; on apparel, prioritize fabric weave, seams, buttons, and "
+            "zippers. More generally, look for textures, materials, logos, joints, "
+            f"pads, seams, stitching, or other unique design elements.{hint_line}\n\n"
+            "Return ONLY a JSON array, no other text, no markdown code fences, in "
+            "this exact format:\n"
+            '[{"label": "short description", "x1": 0, "y1": 0, "x2": 0, "y2": 0}, ...]\n\n'
+            "Coordinates are normalized to a 0-1000 scale where (0,0) is the "
+            "top-left corner and (1000,1000) is the bottom-right corner of the "
+            "image. Each box should tightly frame just that one detail - padding "
+            "for context is added separately afterwards. Each box MUST have "
+            "real width and height - x2 noticeably greater than x1, and y2 "
+            "noticeably greater than y1 (at least 40 units apart on the "
+            "0-1000 scale). Never return a single point or a zero-size box. "
+            f"Return exactly {num_details} entries."
+        )
+        return self._request_details_json(
+            client, model, image_url, prompt, expected_count=num_details, check_collisions=True
+        )
 
     # A crop whose pixel std-dev is below this is treated as a flat/blank
     # region (the model's bounding box missed the actual detail) and is
@@ -405,6 +560,7 @@ class SupersideSmartDetailSheetNode(
         try:
             client = self.get_client(api_key)
 
+            product_category = kwargs.get("product_category", "auto")
             num_details = kwargs.get("num_details", 3)
             detail_hint = kwargs.get("detail_hint", "")
             crop_scale = kwargs.get("crop_scale", 2.0)
@@ -414,16 +570,21 @@ class SupersideSmartDetailSheetNode(
             image_url = self.upload_image(client, image)
             logger.info(f"Uploaded source image: {image_url}")
 
-            details = self._detect_details(client, model, image_url, num_details, detail_hint)
-            logger.info(f"Detected {len(details)} details: {[d.get('label') for d in details]}")
-
-            # Convert the source IMAGE tensor to a PIL image for local cropping.
+            # Convert the source IMAGE tensor to a PIL image for local cropping
+            # (and for eyewear-mode Florence-2 detection, which needs pixel
+            # dimensions to normalize its boxes).
             image_np = image.cpu().numpy() if isinstance(image, torch.Tensor) else image
             if image_np.ndim == 4:
                 image_np = image_np[0]
             if image_np.dtype != np.uint8:
                 image_np = (image_np * 255).astype(np.uint8) if image_np.max() <= 1.0 else image_np.astype(np.uint8)
             source_img = Image.fromarray(image_np).convert("RGB")
+
+            details = self._detect_details(
+                client, model, image_url, num_details, detail_hint, product_category,
+                source_img.width, source_img.height,
+            )
+            logger.info(f"Detected {len(details)} details: {[d.get('label') for d in details]}")
 
             kept_details = []
             detail_crops = []
