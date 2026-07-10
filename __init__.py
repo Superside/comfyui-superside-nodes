@@ -7,6 +7,7 @@ try:
     from .modules.florence_2_caption_node import SupersideFlorence2CaptionNode
     from .modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
     from .modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
+    from .modules.gemini_omni_flash_edit_node import SupersideGeminiOmniFlashEditNode
     from .modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
     from .modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
     from .modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
@@ -46,6 +47,7 @@ except ImportError:
     from modules.florence_2_caption_node import SupersideFlorence2CaptionNode
     from modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
     from modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
+    from modules.gemini_omni_flash_edit_node import SupersideGeminiOmniFlashEditNode
     from modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
     from modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
     from modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
@@ -76,6 +78,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideFlorence2CaptionNode": SupersideFlorence2CaptionNode,
     "SupersideFlorence2RegionSelectorNode": SupersideFlorence2RegionSelectorNode,
     "SupersideFluxKontextMaxMultiImageNode": SupersideFluxKontextMaxMultiImageNode,
+    "SupersideGeminiOmniFlashEditNode": SupersideGeminiOmniFlashEditNode,
     "SupersideGPTImage2EditNode": SupersideGPTImage2EditNode,
     "SupersideGrokImagineImageQualityEditNode": SupersideGrokImagineImageQualityEditNode,
     "SupersideIdeogramUpscaleNode": SupersideIdeogramUpscaleNode,
@@ -107,6 +110,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideFlorence2CaptionNode": "Superside Florence-2 Detailed Caption",
     "SupersideFlorence2RegionSelectorNode": "Superside Florence-2 Smart Region Selector",
     "SupersideFluxKontextMaxMultiImageNode": "Superside Flux Kontext Max Multi-Image Node",
+    "SupersideGeminiOmniFlashEditNode": "Superside Gemini Omni Flash Edit",
     "SupersideGPTImage2EditNode": "Superside GPT Image 2 Edit",
     "SupersideGrokImagineImageQualityEditNode": "Superside Grok Imagine Image Quality Edit",
     "SupersideIdeogramUpscaleNode": "Superside Ideogram Upscale",

@@ -97,6 +97,13 @@ Prompt-driven background replacement with realistic lighting/perspective. Use th
 - **Inputs:** `image`, `prompt`, `api_key` · optional: `negative_prompt`, `steps_num`, `seed` (-1 = random), `sync_mode`
 - **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
 
+### Video-to-video
+
+#### Gemini Omni Flash Edit (`SupersideGeminiOmniFlashEditNode`)
+Edit an existing video with a simple text instruction (e.g. "Make this video anime. Keep everything else the same.") using Google Gemini Omni Flash. Takes a video URL (not an uploaded IMAGE/VIDEO tensor) and returns the edited video's URL. Uses fal's queued execution path internally (polls until complete). Not available for editing uploaded videos in the EEA, Switzerland, or the UK; voice editing and audio references are not supported.
+- **Inputs:** `video_url`, `prompt`, `api_key`
+- **Outputs:** `video_url` (STRING)
+
 ### Image-to-video
 
 #### Kling 2.1 Image-to-Video (`SupersideKling21ImageToVideoNode`)
@@ -203,7 +210,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <28 node files>
+│   └── <29 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md
@@ -213,5 +220,5 @@ comfyui-superside-nodes/
 
 - **`SupersideFalNode.get_client(api_key)`** builds a `fal_client.SyncClient(key=api_key)` scoped to that single call - no global environment mutation, so multiple nodes with different keys never interfere with each other.
 - **`ImageProcessingMixin`** handles tensor→PNG upload and API-response→tensor conversion.
-- **`APIClientMixin.call_api(client, endpoint, arguments)`** picks synchronous vs. queued execution automatically based on the endpoint (GPT Image 2 uses the queued path; everything else is synchronous).
+- **`APIClientMixin.call_api(client, endpoint, arguments)`** picks synchronous vs. queued execution automatically based on the endpoint - slow endpoints (GPT Image 2, Seedream V5 Pro/V4.5, Gemini Omni Flash) go through fal.ai's queue via `subscribe()` with a bounded client-side timeout, since a single long-held connection is prone to mid-flight disconnects on multi-minute generations; everything else uses the faster synchronous path.
 - All nodes are registered under the **Superside** category.

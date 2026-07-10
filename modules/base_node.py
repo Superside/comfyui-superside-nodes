@@ -33,6 +33,7 @@ QUEUED_ENDPOINTS = {
     "openai/gpt-image-2/edit",
     "bytedance/seedream/v5/pro/edit",
     "bytedance/seedream/v4.5/edit",
+    "google/gemini-omni-flash/edit",
 }
 
 # Without a client-side timeout, fal_client.subscribe() waits indefinitely -
