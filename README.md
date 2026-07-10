@@ -201,6 +201,11 @@ Detection has two modes, picked via `product_category`:
 - **Inputs:** `image`, `api_key` · optional: `product_category` (auto/eyewear, default auto), `num_details` (1-6, default 3, ignored for eyewear), `detail_hint` (free text to steer the model, auto mode only), `crop_scale` (1-4x, default 2), `model` (gemini-2.5-flash/gemini-2.5-pro/gpt-4o/claude-sonnet-4.6, default gpt-4o, auto mode only), `crop_size_percent` (each crop's square size as a percent of the original's shorter side, default 35%)
 - **Outputs:** `image` (IMAGE, the composited sheet), `info` (STRING, JSON with the kept details, discard count, and settings used)
 
+#### Manual Detail Sheet (`SupersideManualDetailSheetNode`)
+The manual counterpart to Smart Detail Sheet: instead of an AI choosing the detail crops, **you draw them yourself** on an interactive image preview built into the node. A row of numbered on/off buttons above the image turns each of up to 6 boxes on or off; every active box appears on the image, where you **drag it to move** and **scroll over it to resize**. Each box is a true 1:1 square (in image pixels). On run, the active boxes are cropped, upscaled locally (Lanczos), and composited alongside the original into the same product-spec-sheet layout as the Smart node (side column for portrait originals, row below for landscape/square). No AI detection and no API key - the node never leaves the machine. Boxes that land on a flat/blank area are discarded automatically.
+- **Inputs:** `image` · optional: `crop_scale` (1-4x, default 2), `boxes` (internal - set by dragging on the preview; not meant to be edited by hand)
+- **Outputs:** `image` (IMAGE, the composited sheet), `info` (STRING, JSON with the kept boxes, discard count, and crop scale)
+
 ### Utility (no API key needed)
 
 These two nodes make no fal.ai calls, so they don't have an `api_key` input.
@@ -222,7 +227,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <30 node files>
+│   └── <31 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md

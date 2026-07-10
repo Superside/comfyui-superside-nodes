@@ -14,6 +14,7 @@ try:
     from .modules.juggernaut_flux_pro_img2img_node import SupersideJuggernautFluxProImg2ImgNode
     from .modules.kling_21_image_to_video_node import SupersideKling21ImageToVideoNode
     from .modules.kling_25_turbo_pro_image_to_video_node import SupersideKling25TurboProImageToVideoNode
+    from .modules.manual_detail_sheet_node import SupersideManualDetailSheetNode
     from .modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
     from .modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
     from .modules.pasd_upscaler_node import SupersidePASDUpscalerNode
@@ -55,6 +56,7 @@ except ImportError:
     from modules.juggernaut_flux_pro_img2img_node import SupersideJuggernautFluxProImg2ImgNode
     from modules.kling_21_image_to_video_node import SupersideKling21ImageToVideoNode
     from modules.kling_25_turbo_pro_image_to_video_node import SupersideKling25TurboProImageToVideoNode
+    from modules.manual_detail_sheet_node import SupersideManualDetailSheetNode
     from modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
     from modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
     from modules.pasd_upscaler_node import SupersidePASDUpscalerNode
@@ -87,6 +89,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideJuggernautFluxProImg2ImgNode": SupersideJuggernautFluxProImg2ImgNode,
     "SupersideKling21ImageToVideoNode": SupersideKling21ImageToVideoNode,
     "SupersideKling25TurboProImageToVideoNode": SupersideKling25TurboProImageToVideoNode,
+    "SupersideManualDetailSheetNode": SupersideManualDetailSheetNode,
     "SupersideNanoBananaProEditNode": SupersideNanoBananaProEditNode,
     "SupersideNanoBananaV2EditNode": SupersideNanoBananaV2EditNode,
     "SupersidePASDUpscalerNode": SupersidePASDUpscalerNode,
@@ -120,6 +123,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideJuggernautFluxProImg2ImgNode": "Superside Juggernaut Flux Pro Image-to-Image",
     "SupersideKling21ImageToVideoNode": "Superside Kling 2.1 Image-to-Video",
     "SupersideKling25TurboProImageToVideoNode": "Superside Kling 2.5 Turbo Pro Image-to-Video",
+    "SupersideManualDetailSheetNode": "Superside Manual Detail Sheet",
     "SupersideNanoBananaProEditNode": "Superside Nano Banana Pro Edit Node",
     "SupersideNanoBananaV2EditNode": "Superside Nano Banana V2 Edit Node",
     "SupersidePASDUpscalerNode": "Superside PASD Upscaler Node",
