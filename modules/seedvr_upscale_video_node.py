@@ -2,6 +2,7 @@ import logging
 from .base_node import (
     SupersideFalNode,
     APIClientMixin,
+    VideoProcessingMixin,
     API_KEY_INPUT_SPEC,
 )
 
@@ -10,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 class SupersideSeedVRUpscaleVideoNode(
     SupersideFalNode,
+    VideoProcessingMixin,
     APIClientMixin,
 ):
     """
@@ -25,13 +27,7 @@ class SupersideSeedVRUpscaleVideoNode(
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "video_url": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "placeholder": "Enter video URL to upscale",
-                    },
-                ),
+                "video": ("VIDEO",),
                 "api_key": API_KEY_INPUT_SPEC,
             },
             "optional": {
@@ -57,12 +53,13 @@ class SupersideSeedVRUpscaleVideoNode(
             },
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("video_url",)
+    RETURN_TYPES = ("VIDEO", "STRING")
+    RETURN_NAMES = ("video", "video_url")
     FUNCTION = "upscale"
     DESCRIPTION = (
         "Upscale videos using SeedVR2 with temporal consistency. "
-        "Maintains smooth motion across frames while enhancing quality."
+        "Maintains smooth motion across frames while enhancing quality. "
+        "Connect a LoadVideo node in and a SaveVideo/PreviewVideo node out."
     )
 
     def process_video_result(self, result):
@@ -89,11 +86,8 @@ class SupersideSeedVRUpscaleVideoNode(
 
     def prepare_arguments(self, video_url, **kwargs):
         """Prepare arguments for the SeedVR video upscale API call."""
-        if not video_url or not video_url.strip():
-            raise ValueError("Video URL is required for SeedVR video upscaling")
-
         arguments = {
-            "video_url": video_url.strip(),
+            "video_url": video_url,
         }
 
         if "upscale_factor" in kwargs and kwargs["upscale_factor"] is not None:
@@ -105,10 +99,11 @@ class SupersideSeedVRUpscaleVideoNode(
         logger.debug(f"Prepared API arguments: {arguments}")
         return arguments
 
-    def upscale(self, video_url, api_key, **kwargs):
+    def upscale(self, video, api_key, **kwargs):
         """Main upscaling function for SeedVR video."""
         try:
             client = self.get_client(api_key)
+            video_url = self.upload_video(client, video)
             arguments = self.prepare_arguments(video_url, **kwargs)
             upscale_factor = kwargs.get("upscale_factor", 2.0)
 
@@ -122,7 +117,8 @@ class SupersideSeedVRUpscaleVideoNode(
             logger.debug(f"SeedVR video upscale API response: {result}")
 
             upscaled_video_url = self.process_video_result(result)
-            return (upscaled_video_url,)
+            upscaled_video = self.download_video(upscaled_video_url)
+            return (upscaled_video, upscaled_video_url)
 
         except Exception as e:
             logger.error(f"SeedVR video upscaling failed: {str(e)}")

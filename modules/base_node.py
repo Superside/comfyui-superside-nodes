@@ -187,6 +187,66 @@ class ImageProcessingMixin:
         return (output_tensor,)
 
 
+class VideoProcessingMixin:
+    """
+    Shared video upload/download helpers for Superside fal.ai nodes.
+
+    Uses ComfyUI's native VIDEO type (comfy_api.latest.Input.Video /
+    InputImpl.VideoFromFile) so users can wire a LoadVideo node straight in
+    and a SaveVideo/PreviewVideo node straight out - no manual URL copying.
+    The import is done lazily (not at module load time) so the rest of this
+    package still works on older ComfyUI installs that predate this API;
+    only the video nodes themselves would fail, with a clear error.
+    """
+
+    @staticmethod
+    def _video_input_impl():
+        try:
+            from comfy_api.latest import InputImpl
+            return InputImpl
+        except ImportError as e:
+            raise RuntimeError(
+                "This node requires ComfyUI's native VIDEO type "
+                "(comfy_api.latest.InputImpl), which isn't available in this "
+                "ComfyUI install. Please update ComfyUI."
+            ) from e
+
+    def upload_video(self, client, video_input):
+        """
+        Upload a ComfyUI VIDEO input to fal.ai and return the URL.
+
+        Args:
+            client: fal_client.SyncClient scoped to the node's api_key input.
+            video_input: a comfy_api VideoInput (e.g. from a LoadVideo node).
+
+        Returns:
+            str: URL of the uploaded video.
+        """
+        try:
+            source = video_input.get_stream_source()
+            if isinstance(source, str):
+                url = client.upload_file(source)
+            else:
+                source.seek(0)
+                url = client.upload(source.read(), "video/mp4")
+
+            logger.info(f"Video uploaded successfully. URL: {url}")
+            return url
+        except Exception as e:
+            logger.error(f"Failed to upload video: {str(e)}")
+            raise
+
+    def download_video(self, video_url):
+        """
+        Download a video from a URL and wrap it as a native ComfyUI VIDEO
+        object, ready to connect to SaveVideo/PreviewVideo.
+        """
+        InputImpl = self._video_input_impl()
+        response = requests.get(video_url)
+        response.raise_for_status()
+        return InputImpl.VideoFromFile(io.BytesIO(response.content))
+
+
 class APIClientMixin:
     """Shared fal.ai API-call helper for Superside nodes."""
 

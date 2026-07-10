@@ -100,9 +100,9 @@ Prompt-driven background replacement with realistic lighting/perspective. Use th
 ### Video-to-video
 
 #### Gemini Omni Flash Edit (`SupersideGeminiOmniFlashEditNode`)
-Edit an existing video with a simple text instruction (e.g. "Make this video anime. Keep everything else the same.") using Google Gemini Omni Flash. Takes a video URL (not an uploaded IMAGE/VIDEO tensor) and returns the edited video's URL. Uses fal's queued execution path internally (polls until complete). Not available for editing uploaded videos in the EEA, Switzerland, or the UK; voice editing and audio references are not supported.
-- **Inputs:** `video_url`, `prompt`, `api_key`
-- **Outputs:** `video_url` (STRING)
+Edit an existing video with a simple text instruction (e.g. "Make this video anime. Keep everything else the same.") using Google Gemini Omni Flash. Connect a `LoadVideo` node directly to `video` - the node uploads it to fal.ai internally, no manual URL needed. Uses fal's queued execution path internally (polls until complete). Not available for editing uploaded videos in the EEA, Switzerland, or the UK; voice editing and audio references are not supported.
+- **Inputs:** `video` (VIDEO), `prompt`, `api_key`
+- **Outputs:** `video` (VIDEO - connect directly to SaveVideo/PreviewVideo), `video_url` (STRING, direct fal.ai link)
 
 ### Image-to-video
 
@@ -149,9 +149,9 @@ Seamless upscaler with target-resolution or scale-factor mode.
 - **Outputs:** `IMAGE`
 
 #### SeedVR Upscale Video (`SupersideSeedVRUpscaleVideoNode`)
-Video upscaling with temporal consistency (takes a video URL, not an IMAGE tensor).
-- **Inputs:** `video_url`, `api_key` · optional: `upscale_factor`, `seed`
-- **Outputs:** `video_url` (STRING)
+Video upscaling with temporal consistency. Connect a `LoadVideo` node directly to `video` - no manual URL needed.
+- **Inputs:** `video` (VIDEO), `api_key` · optional: `upscale_factor`, `seed`
+- **Outputs:** `video` (VIDEO - connect directly to SaveVideo/PreviewVideo), `video_url` (STRING, direct fal.ai link)
 
 #### Topaz Upscale Image (`SupersideTopazUpscaleImageNode`)
 10 Topaz model variants (Standard, CGI, High Fidelity, Recovery, Redefine, Wonder, etc.) with face enhancement, denoise, sharpen, and creative-recovery controls.
@@ -220,5 +220,6 @@ comfyui-superside-nodes/
 
 - **`SupersideFalNode.get_client(api_key)`** builds a `fal_client.SyncClient(key=api_key)` scoped to that single call - no global environment mutation, so multiple nodes with different keys never interfere with each other.
 - **`ImageProcessingMixin`** handles tensor→PNG upload and API-response→tensor conversion.
+- **`VideoProcessingMixin`** does the same for ComfyUI's native VIDEO type (`comfy_api.latest.InputImpl.VideoFromFile`) - video nodes accept a `LoadVideo` output directly and return a VIDEO connectable to `SaveVideo`/`PreviewVideo`, with no manual URL copying required.
 - **`APIClientMixin.call_api(client, endpoint, arguments)`** picks synchronous vs. queued execution automatically based on the endpoint - slow endpoints (GPT Image 2, Seedream V5 Pro/V4.5, Gemini Omni Flash) go through fal.ai's queue via `subscribe()` with a bounded client-side timeout, since a single long-held connection is prone to mid-flight disconnects on multi-minute generations; everything else uses the faster synchronous path.
 - All nodes are registered under the **Superside** category.

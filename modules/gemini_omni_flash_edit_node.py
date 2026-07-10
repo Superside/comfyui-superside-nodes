@@ -2,6 +2,7 @@ import logging
 from .base_node import (
     SupersideFalNode,
     APIClientMixin,
+    VideoProcessingMixin,
     API_KEY_INPUT_SPEC,
 )
 
@@ -10,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 class SupersideGeminiOmniFlashEditNode(
     SupersideFalNode,
+    VideoProcessingMixin,
     APIClientMixin,
 ):
     """
@@ -29,13 +31,7 @@ class SupersideGeminiOmniFlashEditNode(
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "video_url": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "placeholder": "Enter the URL of the video to edit",
-                    },
-                ),
+                "video": ("VIDEO",),
                 "prompt": (
                     "STRING",
                     {
@@ -47,13 +43,14 @@ class SupersideGeminiOmniFlashEditNode(
             },
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("video_url",)
+    RETURN_TYPES = ("VIDEO", "STRING")
+    RETURN_NAMES = ("video", "video_url")
     FUNCTION = "edit"
     DESCRIPTION = (
         "Edit a video using Google Gemini Omni Flash on fal.ai. Describe the "
         "change in a simple instruction - keep prompts short and add \"Keep "
-        "everything else the same\" to preserve the rest of the scene."
+        "everything else the same\" to preserve the rest of the scene. "
+        "Connect a LoadVideo node in and a SaveVideo/PreviewVideo node out."
     )
 
     def process_video_result(self, result):
@@ -72,19 +69,18 @@ class SupersideGeminiOmniFlashEditNode(
         return video_url
 
     def prepare_arguments(self, video_url, prompt):
-        if not video_url or not video_url.strip():
-            raise ValueError("video_url is required for Gemini Omni Flash editing")
         if not prompt or not prompt.strip():
             raise ValueError("prompt is required for Gemini Omni Flash editing")
 
         return {
-            "video_url": video_url.strip(),
+            "video_url": video_url,
             "prompt": prompt.strip(),
         }
 
-    def edit(self, video_url, prompt, api_key):
+    def edit(self, video, prompt, api_key):
         try:
             client = self.get_client(api_key)
+            video_url = self.upload_video(client, video)
             arguments = self.prepare_arguments(video_url, prompt)
 
             logger.info(f"Editing video with Gemini Omni Flash: {video_url}")
@@ -92,7 +88,8 @@ class SupersideGeminiOmniFlashEditNode(
             result = self.call_api(client, "google/gemini-omni-flash/edit", arguments)
 
             edited_video_url = self.process_video_result(result)
-            return (edited_video_url,)
+            edited_video = self.download_video(edited_video_url)
+            return (edited_video, edited_video_url)
 
         except Exception as e:
             logger.error(f"Gemini Omni Flash edit failed: {str(e)}")
