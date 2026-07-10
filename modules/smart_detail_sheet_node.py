@@ -75,13 +75,13 @@ class SupersideSmartDetailSheetNode(
                     },
                 ),
                 "model": (VISION_MODEL_OPTIONS, {"default": "openai/gpt-4o"}),
-                "padding_percent": (
+                "crop_size_percent": (
                     "FLOAT",
                     {
-                        "default": 200.0,
-                        "min": 0.0,
-                        "max": 300.0,
-                        "tooltip": "Extra margin added around each detected detail before cropping, as a percent of the detail's own size. Compensates for imprecise bounding boxes and gives enough surrounding context that the detail reads as part of the product, not an abstract texture patch.",
+                        "default": 35.0,
+                        "min": 5.0,
+                        "max": 100.0,
+                        "tooltip": "Size of each detail crop as a percent of the original photo's shorter side, always a square centered on the detected detail. A fixed size (instead of expanding the model's own bounding box) keeps crops consistent and robust to imprecise/oddly-shaped boxes.",
                     },
                 ),
             },
@@ -136,40 +136,64 @@ class SupersideSmartDetailSheetNode(
             "prompt": prompt,
             "image_urls": [image_url],
             "model": model,
+            # Some models (e.g. gemini-2.5-pro) reject the primary endpoint
+            # outright with "Reasoning is mandatory" unless this is set,
+            # which otherwise forces a fallback to a less obedient endpoint.
+            "reasoning": True,
         }
 
-        result = None
-        last_error = None
-        for endpoint in self.ENDPOINT_CANDIDATES:
+        # A model occasionally ignores the "JSON only" instruction and
+        # returns prose instead (more common on the any-llm/vision fallback
+        # endpoint). Retry once with a sharper reminder before giving up.
+        MAX_ATTEMPTS = 2
+        last_parse_error = None
+        for attempt in range(MAX_ATTEMPTS):
+            call_arguments = dict(arguments)
+            if attempt > 0:
+                call_arguments["prompt"] = (
+                    arguments["prompt"] + "\n\nIMPORTANT: your previous response did not "
+                    "contain a valid JSON array. Respond with NOTHING except the raw JSON "
+                    "array - no headings, no bullet points, no explanation."
+                )
+
+            result = None
+            last_error = None
+            for endpoint in self.ENDPOINT_CANDIDATES:
+                try:
+                    logger.info(f"Trying vision endpoint: {endpoint} (attempt {attempt + 1})")
+                    result = self.call_api(client, endpoint, call_arguments)
+                    break
+                except Exception as endpoint_error:
+                    last_error = endpoint_error
+                    logger.warning(f"Endpoint failed: {endpoint} - {str(endpoint_error)}")
+
+            if result is None:
+                raise RuntimeError(f"All vision endpoints failed. Last error: {last_error}")
+
+            output_text = result.get("output", "")
+            logger.debug(f"Vision model raw output: {output_text}")
+
+            # Some models append reasoning/notes after the JSON array. A
+            # greedy regex from the first "[" to the last "]" would swallow
+            # that trailing text and fail to parse, so instead decode just
+            # the JSON value starting at the first "[" and ignore whatever
+            # follows it.
+            start = output_text.find("[")
+            if start == -1:
+                last_parse_error = RuntimeError(
+                    f"Vision model did not return a parseable JSON array. Raw output: {output_text[:500]}"
+                )
+                logger.warning(f"Attempt {attempt + 1}: {last_parse_error}")
+                continue
+
             try:
-                logger.info(f"Trying vision endpoint: {endpoint}")
-                result = self.call_api(client, endpoint, arguments)
+                details, _ = json.JSONDecoder().raw_decode(output_text, start)
                 break
-            except Exception as endpoint_error:
-                last_error = endpoint_error
-                logger.warning(f"Endpoint failed: {endpoint} - {str(endpoint_error)}")
-
-        if result is None:
-            raise RuntimeError(f"All vision endpoints failed. Last error: {last_error}")
-
-        output_text = result.get("output", "")
-        logger.debug(f"Vision model raw output: {output_text}")
-
-        # Some models (e.g. gemini-2.5-pro) append reasoning/notes after the
-        # JSON array. A greedy regex from the first "[" to the last "]" would
-        # swallow that trailing text and fail to parse, so instead decode
-        # just the JSON value starting at the first "[" and ignore whatever
-        # follows it.
-        start = output_text.find("[")
-        if start == -1:
-            raise RuntimeError(
-                f"Vision model did not return a parseable JSON array. Raw output: {output_text[:500]}"
-            )
-
-        try:
-            details, _ = json.JSONDecoder().raw_decode(output_text, start)
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"Failed to parse detail JSON from vision model: {e}") from e
+            except json.JSONDecodeError as e:
+                last_parse_error = RuntimeError(f"Failed to parse detail JSON from vision model: {e}")
+                logger.warning(f"Attempt {attempt + 1}: {last_parse_error}")
+        else:
+            raise last_parse_error
 
         if not isinstance(details, list) or not details:
             raise RuntimeError("Vision model returned no usable details.")
@@ -184,28 +208,58 @@ class SupersideSmartDetailSheetNode(
     # crop is much closer to 0.
     BLANK_CROP_STD_THRESHOLD = 4.0
 
-    def _crop_and_scale_detail(self, source_img, detail, crop_scale, padding_percent):
+    def _crop_and_scale_detail(self, source_img, detail, crop_scale, crop_size_percent):
         width, height = source_img.size
 
-        x1 = float(detail.get("x1", 0)) / 1000.0 * width
-        y1 = float(detail.get("y1", 0)) / 1000.0 * height
-        x2 = float(detail.get("x2", 1000)) / 1000.0 * width
-        y2 = float(detail.get("y2", 1000)) / 1000.0 * height
+        x1_raw = float(detail.get("x1", 0))
+        y1_raw = float(detail.get("y1", 0))
+        x2_raw = float(detail.get("x2", 1000))
+        y2_raw = float(detail.get("y2", 1000))
+        if x2_raw <= x1_raw:
+            x1_raw, x2_raw = x2_raw, x1_raw
+        if y2_raw <= y1_raw:
+            y1_raw, y2_raw = y2_raw, y1_raw
 
-        if x2 <= x1:
-            x1, x2 = x2, x1
-        if y2 <= y1:
-            y1, y2 = y2, y1
+        # Center point of the detected box, in pixel coordinates - not the
+        # box's own width/height. This makes the crop robust to imprecise or
+        # oddly-shaped bounding boxes: even when the model's box is too
+        # tight, too wide, or lopsided, the crop still expands symmetrically
+        # around roughly the right spot instead of inheriting the box's
+        # (possibly wrong) shape.
+        cx = (x1_raw + x2_raw) / 2.0 / 1000.0 * width
+        cy = (y1_raw + y2_raw) / 2.0 / 1000.0 * height
 
-        box_w = max(1.0, x2 - x1)
-        box_h = max(1.0, y2 - y1)
-        pad_x = box_w * (padding_percent / 100.0)
-        pad_y = box_h * (padding_percent / 100.0)
+        # Fixed square size, as a percent of the image's shorter side, so
+        # every detail crop is a consistent, predictable size regardless of
+        # how large or small the detected box happened to be.
+        size = max(2.0, crop_size_percent / 100.0 * min(width, height))
+        half = size / 2.0
 
-        x1 = max(0, int(x1 - pad_x))
-        y1 = max(0, int(y1 - pad_y))
-        x2 = min(width, int(x2 + pad_x))
-        y2 = min(height, int(y2 + pad_y))
+        x1 = cx - half
+        y1 = cy - half
+        x2 = cx + half
+        y2 = cy + half
+
+        # Keep the crop fully inside the image while staying square - shift
+        # it instead of clipping, so it never gets squashed into a thin
+        # rectangle when the center point is near an edge.
+        if x1 < 0:
+            x2 -= x1
+            x1 = 0.0
+        if y1 < 0:
+            y2 -= y1
+            y1 = 0.0
+        if x2 > width:
+            x1 -= (x2 - width)
+            x2 = float(width)
+        if y2 > height:
+            y1 -= (y2 - height)
+            y2 = float(height)
+
+        x1 = max(0, int(round(x1)))
+        y1 = max(0, int(round(y1)))
+        x2 = min(width, int(round(x2)))
+        y2 = min(height, int(round(y2)))
 
         if x2 <= x1 or y2 <= y1:
             logger.warning(f"Invalid crop region for detail '{detail.get('label', '?')}' - skipping")
@@ -355,7 +409,7 @@ class SupersideSmartDetailSheetNode(
             detail_hint = kwargs.get("detail_hint", "")
             crop_scale = kwargs.get("crop_scale", 2.0)
             model = kwargs.get("model", "openai/gpt-4o")
-            padding_percent = kwargs.get("padding_percent", 200.0)
+            crop_size_percent = kwargs.get("crop_size_percent", 35.0)
 
             image_url = self.upload_image(client, image)
             logger.info(f"Uploaded source image: {image_url}")
@@ -374,7 +428,7 @@ class SupersideSmartDetailSheetNode(
             kept_details = []
             detail_crops = []
             for d in details:
-                crop = self._crop_and_scale_detail(source_img, d, crop_scale, padding_percent)
+                crop = self._crop_and_scale_detail(source_img, d, crop_scale, crop_size_percent)
                 if crop is not None:
                     kept_details.append(d)
                     detail_crops.append(crop)
@@ -383,7 +437,7 @@ class SupersideSmartDetailSheetNode(
                 raise RuntimeError(
                     "All detected detail crops were discarded as blank/empty. "
                     "Try a more precise model (gemini-2.5-pro, gpt-4o) or a "
-                    "higher padding_percent."
+                    "different crop_size_percent."
                 )
 
             if len(detail_crops) < len(details):
