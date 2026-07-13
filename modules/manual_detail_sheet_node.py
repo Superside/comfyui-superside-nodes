@@ -1,5 +1,7 @@
 import json
 import logging
+import os
+import random
 
 import numpy as np
 import torch
@@ -7,6 +9,26 @@ import torch
 from .base_node import DetailSheetCompositionMixin
 
 logger = logging.getLogger(__name__)
+
+
+def _save_temp_preview(pil_image, prefix):
+    """
+    Save a PIL image into ComfyUI's temp dir and return the {filename,
+    subfolder, type} descriptor the frontend needs to fetch it via /view.
+    Used so the node's in-canvas widget can show the exact image it received
+    (e.g. an upstream-normalized photo) after execution, since the widget
+    otherwise can't read an image out of a non-preview upstream node.
+    """
+    try:
+        import folder_paths
+        out_dir = folder_paths.get_temp_directory()
+    except Exception:
+        return None
+    os.makedirs(out_dir, exist_ok=True)
+    suffix = "".join(random.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(8))
+    filename = f"{prefix}_{suffix}.png"
+    pil_image.save(os.path.join(out_dir, filename))
+    return {"filename": filename, "subfolder": "", "type": "temp"}
 
 
 class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
@@ -127,6 +149,13 @@ class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
     def generate(self, image, crop_scale=2.0, boxes=""):
         try:
             source_img = self._tensor_to_pil(image)
+
+            # Send the received image back to the node's widget so it can be
+            # drawn on / boxed - this is how the widget sees an upstream-
+            # processed image (e.g. from Normalize Product) that has no
+            # preview thumbnail of its own until it runs.
+            source_preview = _save_temp_preview(source_img, "superside_mds_src")
+
             active_boxes = self._parse_boxes(boxes, source_img.width, source_img.height)
 
             kept_details = []
@@ -162,7 +191,10 @@ class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
                 "crop_scale": crop_scale,
             })
 
-            return (composed_tensor, info)
+            result = (composed_tensor, info)
+            if source_preview is not None:
+                return {"ui": {"superside_src": [source_preview]}, "result": result}
+            return result
 
         except Exception as e:
             logger.error(f"Manual detail sheet failed: {str(e)}")

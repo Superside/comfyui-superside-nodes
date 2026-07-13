@@ -17,9 +17,11 @@ try:
     from .modules.manual_detail_sheet_node import SupersideManualDetailSheetNode
     from .modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
     from .modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
+    from .modules.normalize_product_node import SupersideNormalizeProductNode
     from .modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from .modules.prompt_box_node import SupersidePromptBoxNode
     from .modules.prompt_splitter_node import SupersidePromptSplitterNode
+    from .modules.resize_long_side_node import SupersideResizeLongSideNode
     from .modules.sam_3_region_selector_node import SupersideSAM3RegionSelectorNode
     from .modules.seedance_lite_image_to_video_node import SupersideSeedanceLiteImageToVideoNode
     from .modules.seedance_pro_image_to_video_node import SupersideSeedanceProImageToVideoNode
@@ -59,9 +61,11 @@ except ImportError:
     from modules.manual_detail_sheet_node import SupersideManualDetailSheetNode
     from modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
     from modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
+    from modules.normalize_product_node import SupersideNormalizeProductNode
     from modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from modules.prompt_box_node import SupersidePromptBoxNode
     from modules.prompt_splitter_node import SupersidePromptSplitterNode
+    from modules.resize_long_side_node import SupersideResizeLongSideNode
     from modules.sam_3_region_selector_node import SupersideSAM3RegionSelectorNode
     from modules.seedance_lite_image_to_video_node import SupersideSeedanceLiteImageToVideoNode
     from modules.seedance_pro_image_to_video_node import SupersideSeedanceProImageToVideoNode
@@ -92,9 +96,11 @@ NODE_CLASS_MAPPINGS = {
     "SupersideManualDetailSheetNode": SupersideManualDetailSheetNode,
     "SupersideNanoBananaProEditNode": SupersideNanoBananaProEditNode,
     "SupersideNanoBananaV2EditNode": SupersideNanoBananaV2EditNode,
+    "SupersideNormalizeProductNode": SupersideNormalizeProductNode,
     "SupersidePASDUpscalerNode": SupersidePASDUpscalerNode,
     "SupersidePromptBoxNode": SupersidePromptBoxNode,
     "SupersidePromptSplitterNode": SupersidePromptSplitterNode,
+    "SupersideResizeLongSideNode": SupersideResizeLongSideNode,
     "SupersideSAM3RegionSelectorNode": SupersideSAM3RegionSelectorNode,
     "SupersideSeedanceLiteImageToVideoNode": SupersideSeedanceLiteImageToVideoNode,
     "SupersideSeedanceProImageToVideoNode": SupersideSeedanceProImageToVideoNode,
@@ -126,9 +132,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideManualDetailSheetNode": "Superside Manual Detail Sheet",
     "SupersideNanoBananaProEditNode": "Superside Nano Banana Pro Edit Node",
     "SupersideNanoBananaV2EditNode": "Superside Nano Banana V2 Edit Node",
+    "SupersideNormalizeProductNode": "Superside Normalize Product",
     "SupersidePASDUpscalerNode": "Superside PASD Upscaler Node",
     "SupersidePromptBoxNode": "Superside Prompt Box",
     "SupersidePromptSplitterNode": "Superside Prompt Splitter",
+    "SupersideResizeLongSideNode": "Superside Resize (Long Side)",
     "SupersideSAM3RegionSelectorNode": "Superside SAM 3 Smart Region Selector",
     "SupersideSeedanceLiteImageToVideoNode": "Superside Seedance Lite Image-to-Video",
     "SupersideSeedanceProImageToVideoNode": "Superside Seedance Pro Image-to-Video",

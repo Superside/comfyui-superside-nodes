@@ -146,9 +146,22 @@ app.registerExtension({
             canvasBox.appendChild(hint);
             wrapper.appendChild(canvasBox);
 
+            // Live crop previews - one square thumbnail per active box, showing
+            // exactly what will be cropped, so you can confirm the detail is
+            // inside the box before running.
+            const previewLabel = document.createElement("div");
+            previewLabel.textContent = "Crop previews (what each box will capture):";
+            previewLabel.style.cssText = "font-size:10px;color:#aaa;font-family:sans-serif;margin-top:2px;";
+            wrapper.appendChild(previewLabel);
+
+            const previewStrip = document.createElement("div");
+            previewStrip.style.cssText =
+                "display:flex;flex-wrap:wrap;gap:6px;padding:2px;min-height:76px;align-items:flex-start;";
+            wrapper.appendChild(previewStrip);
+
             const domWidget = node.addDOMWidget("box_preview", "BoxPreviewWidget", wrapper, {
                 serialize: false,
-                getMinHeight: () => 250,
+                getMinHeight: () => 340,
             });
 
             const img = new Image();
@@ -247,7 +260,51 @@ app.registerExtension({
                 });
 
                 updateButtons();
+                updatePreviews();
             }
+
+            // Rebuild the row of live crop thumbnails - one per active box,
+            // showing the exact region of the source image that box covers.
+            const previewThumbs = [];
+            function updatePreviews() {
+                // Ensure one thumb canvas per box exists (reused across renders).
+                while (previewThumbs.length < MAX_BOXES) {
+                    const i = previewThumbs.length;
+                    const c = document.createElement("canvas");
+                    c.width = 72;
+                    c.height = 72;
+                    c.style.cssText =
+                        "width:72px;height:72px;border-radius:4px;border:2px solid " +
+                        COLORS[i] + ";background:#000;display:none;";
+                    previewStrip.appendChild(c);
+                    previewThumbs.push(c);
+                }
+
+                previewThumbs.forEach((c, i) => {
+                    const b = boxes[i];
+                    if (!imgLoaded || !b || b.active === false) {
+                        c.style.display = "none";
+                        return;
+                    }
+                    c.style.display = "block";
+                    const ctx = c.getContext("2d");
+                    ctx.clearRect(0, 0, c.width, c.height);
+                    const sx = b.x1 * img.naturalWidth;
+                    const sy = b.y1 * img.naturalHeight;
+                    const sw = (b.x2 - b.x1) * img.naturalWidth;
+                    const sh = (b.y2 - b.y1) * img.naturalHeight;
+                    if (sw <= 0 || sh <= 0) return;
+                    // The box is square in image pixels, so it fills the square thumb.
+                    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+                    // Number badge in the corner.
+                    ctx.fillStyle = "rgba(0,0,0,0.55)";
+                    ctx.fillRect(0, 0, 16, 16);
+                    ctx.fillStyle = COLORS[i];
+                    ctx.font = "bold 12px sans-serif";
+                    ctx.fillText(String(i + 1), 4, 12);
+                });
+            }
+
             node._sdsRender = render;
             node._sdsSetBoxes = (newBoxes) => {
                 boxes = newBoxes;
@@ -349,25 +406,41 @@ app.registerExtension({
             window.addEventListener("mouseup", onMouseUp);
             canvas.addEventListener("wheel", onWheel, { passive: false });
 
-            // LoadImage-style upstream nodes set `.imgs` once the user picks
-            // a file, but there's no single reliable event for that across
-            // every possible upstream node type - a light poll is the
-            // simplest robust way to notice a new/changed source image.
+            function loadSrc(url) {
+                if (!url || url === lastSrc) return;
+                lastSrc = url;
+                imgLoaded = false;
+                img.onload = () => {
+                    imgLoaded = true;
+                    // Now that the true image aspect ratio is known, rebuild
+                    // the boxes as real pixel-squares.
+                    resquareAll();
+                    syncWidget();
+                    render();
+                };
+                img.src = url;
+            }
+            // Exposed so the prototype's onExecuted can push the image the node
+            // actually received (e.g. an upstream-normalized photo) into the
+            // widget after a run.
+            node._sdsLoadSrc = loadSrc;
+
+            function inputConnected() {
+                const idx = node.inputs?.findIndex((i) => i.name === "image");
+                return idx != null && idx !== -1 && node.inputs[idx]?.link != null;
+            }
+
+            // Upstream LoadImage-style nodes expose a `.imgs` thumbnail we can
+            // show live before running. Compute nodes (e.g. Normalize Product)
+            // don't - for those the image only appears after execution, pushed
+            // in via onExecuted. So: adopt any upstream thumbnail we find, only
+            // clear when the input is truly disconnected, and otherwise keep
+            // whatever is currently shown (including the executed preview).
             const pollInterval = setInterval(() => {
-                const src = getUpstreamImageSrc();
-                if (src && src !== lastSrc) {
-                    lastSrc = src;
-                    imgLoaded = false;
-                    img.onload = () => {
-                        imgLoaded = true;
-                        // Now that the true image aspect ratio is known,
-                        // rebuild the boxes as real pixel-squares.
-                        resquareAll();
-                        syncWidget();
-                        render();
-                    };
-                    img.src = src;
-                } else if (!src && lastSrc) {
+                const up = getUpstreamImageSrc();
+                if (up) {
+                    loadSrc(up);
+                } else if (!inputConnected() && lastSrc) {
                     lastSrc = null;
                     imgLoaded = false;
                     render();
@@ -398,6 +471,25 @@ app.registerExtension({
         nodeType.prototype.onResize = function (size) {
             const result = onResize?.apply(this, arguments);
             this._sdsRender?.();
+            return result;
+        };
+
+        // After the node runs, the Python side sends back the exact image it
+        // received (under "superside_src"). Load it into the widget so the
+        // user can box an upstream-processed image (e.g. from Normalize
+        // Product) that has no live thumbnail of its own.
+        const onExecuted = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function (message) {
+            const result = onExecuted?.apply(this, arguments);
+            const imgs = message?.superside_src;
+            if (imgs && imgs.length) {
+                const info = imgs[0];
+                const url =
+                    "/view?filename=" + encodeURIComponent(info.filename) +
+                    "&type=" + encodeURIComponent(info.type || "temp") +
+                    "&subfolder=" + encodeURIComponent(info.subfolder || "");
+                this._sdsLoadSrc?.(url);
+            }
             return result;
         };
 

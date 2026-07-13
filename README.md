@@ -206,9 +206,23 @@ The manual counterpart to Smart Detail Sheet: instead of an AI choosing the deta
 - **Inputs:** `image` · optional: `crop_scale` (1-4x, default 2), `boxes` (internal - set by dragging on the preview; not meant to be edited by hand)
 - **Outputs:** `image` (IMAGE, the composited sheet), `info` (STRING, JSON with the kept boxes, discard count, and crop scale)
 
+The widget shows the exact image it received (including one produced by an upstream node like Normalize Product) after the first run, plus a live crop-preview thumbnail per active box so you can confirm each detail is inside its box before generating.
+
+#### Normalize Product (`SupersideNormalizeProductNode`)
+Places a catalogue product photo into a consistent frame so a fixed set of detail crops lands on the same spot across every SKU. It detects the product against the light catalogue background, then centers it with a fixed margin - so the product always occupies the same relative area, and fractional crop boxes (e.g. pre-positioned once in a Manual Detail Sheet per profile) stay aligned across the whole catalogue. In the default **keep resolution (pad)** mode it never downscales - it crops to the product and pads with the margin at native resolution, so there's no quality loss. No AI, no API key. Feed it into a Manual Detail Sheet whose boxes you've set once per profile (front / side / 3-4).
+- **Inputs:** `image` · optional: `mode` (keep resolution (pad) / fixed canvas (scale), default keep resolution), `margin_percent` (default 8), `output_width` / `output_height` (fixed-canvas mode only, default 1024), `fit` (contain/width/height, fixed-canvas mode only), `background_hex` (empty = auto-match the photo's backdrop), `threshold` (product-vs-background sensitivity, default 12), `detect_pad_percent` (default 2)
+- **Outputs:** `image` (IMAGE, normalized), `info` (STRING, JSON with the detected bbox, sizes, and settings used)
+
+### Image utilities (no API key needed)
+
+#### Resize (Long Side) (`SupersideResizeLongSideNode`)
+Scales an image so its longest side hits a target size, preserving aspect ratio - handy for capping the biggest dimension of catalogue images before further processing.
+- **Inputs:** `image`, `max_long_side` (default 2048) · optional: `only_downscale` (default ON - only shrink, never enlarge; OFF forces the long side to exactly the target), `resample` (lanczos/bicubic/bilinear/nearest, default lanczos)
+- **Outputs:** `image` (IMAGE), `width` (INT), `height` (INT)
+
 ### Utility (no API key needed)
 
-These two nodes make no fal.ai calls, so they don't have an `api_key` input.
+These nodes make no fal.ai calls, so they don't have an `api_key` input.
 
 #### Prompt Box (`SupersidePromptBoxNode`)
 A simple text box - write a prompt, connect the STRING output anywhere. Displays the text in the node UI.
@@ -227,7 +241,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <31 node files>
+│   └── <33 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md
