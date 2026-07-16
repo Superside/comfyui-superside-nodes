@@ -2,6 +2,7 @@ try:
     # Normal path when ComfyUI loads this as a proper package.
     from .modules.any_llm_text_node import SupersideAnyLLMTextNode
     from .modules.any_llm_vision_node import SupersideAnyLLMVisionNode
+    from .modules.bria_background_replace_node import SupersideBriaBackgroundReplaceNode
     from .modules.bria_background_standardizer_node import SupersideBriaBackgroundStandardizerNode
     from .modules.bria_replace_background_node import SupersideBriaReplaceBackgroundNode
     from .modules.florence_2_caption_node import SupersideFlorence2CaptionNode
@@ -46,6 +47,7 @@ except ImportError:
 
     from modules.any_llm_text_node import SupersideAnyLLMTextNode
     from modules.any_llm_vision_node import SupersideAnyLLMVisionNode
+    from modules.bria_background_replace_node import SupersideBriaBackgroundReplaceNode
     from modules.bria_background_standardizer_node import SupersideBriaBackgroundStandardizerNode
     from modules.bria_replace_background_node import SupersideBriaReplaceBackgroundNode
     from modules.florence_2_caption_node import SupersideFlorence2CaptionNode
@@ -81,6 +83,7 @@ except ImportError:
 NODE_CLASS_MAPPINGS = {
     "SupersideAnyLLMTextNode": SupersideAnyLLMTextNode,
     "SupersideAnyLLMVisionNode": SupersideAnyLLMVisionNode,
+    "SupersideBriaBackgroundReplaceNode": SupersideBriaBackgroundReplaceNode,
     "SupersideBriaBackgroundStandardizerNode": SupersideBriaBackgroundStandardizerNode,
     "SupersideBriaReplaceBackgroundNode": SupersideBriaReplaceBackgroundNode,
     "SupersideFlorence2CaptionNode": SupersideFlorence2CaptionNode,
@@ -117,6 +120,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideAnyLLMTextNode": "Superside Any LLM Text",
     "SupersideAnyLLMVisionNode": "Superside Any LLM Vision",
+    "SupersideBriaBackgroundReplaceNode": "Superside Bria Background Replace",
     "SupersideBriaBackgroundStandardizerNode": "Superside Bria Background Standardizer (Hex Color)",
     "SupersideBriaReplaceBackgroundNode": "Superside Bria Replace Background V2",
     "SupersideFlorence2CaptionNode": "Superside Florence-2 Detailed Caption",

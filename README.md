@@ -87,14 +87,28 @@ Single or dual-reference editing with Wan 2.5.
 
 ### Background tools
 
+There are three Bria background nodes - pick by what you actually want:
+
+| Want… | Use | How |
+|---|---|---|
+| **Exact solid hex color** background, subject untouched | **Bria Background Standardizer (Hex Color)** | Deterministic: cut out subject + composite onto the exact color. No generative model, no quality drift, no invented shadows. |
+| A **generated scene** background (studio, room, outdoors) | **Bria Replace Background V2** *or* **Bria Background Replace** | Prompt-driven, generative (re-lights the scene). Neither can produce an exact flat hex color, and both may subtly alter the subject. |
+
+> Note: the two "Replace" nodes are *generative* - if you prompt them for a flat "#F2F2F1" background you'll get an approximate grey with a gradient/shadow, not the exact color, and the subject may change. For an exact catalogue-flat hex background, always use the **Standardizer**.
+
 #### Bria Background Standardizer - Hex Color (`SupersideBriaBackgroundStandardizerNode`)
-Cuts out the subject with Bria RMBG 2.0 (`fal-ai/bria/background/remove`) and composites it **locally** onto an exact solid hex color - no generative model touches the subject or the background pixels. Use this to batch-homogenize backgrounds (e.g. avatar sets) without any quality drift.
+Cuts out the subject with Bria RMBG 2.0 (`fal-ai/bria/background/remove`) and composites it **locally** onto an exact solid hex color - no generative model touches the subject or the background pixels. Use this to batch-homogenize backgrounds (e.g. avatar sets, eCommerce catalogues) without any quality drift.
 - **Inputs:** `image`, `hex_color` (e.g. `#F5F5F5`), `api_key` · optional: `edge_feather` (0-15px, softens the cutout edge), `sync_mode`
 - **Outputs:** `image` (IMAGE), `info` (STRING - resolved hex + source cutout URL)
 
 #### Bria Replace Background V2 (`SupersideBriaReplaceBackgroundNode`)
-Prompt-driven background replacement with realistic lighting/perspective, using Bria's Replace Background V2 model (fal endpoint `bria/replace-background`). Use this when you want a *scene*, not an exact flat color (for that, use the Standardizer above).
+Prompt-driven background replacement with realistic lighting/perspective, using Bria's Replace Background V2 model (fal endpoint `bria/replace-background`). The simpler of the two generative replace nodes - text prompt only.
 - **Inputs:** `image`, `prompt`, `api_key` · optional: `negative_prompt`, `steps_num`, `seed` (-1 = random), `sync_mode`
+- **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
+
+#### Bria Background Replace (`SupersideBriaBackgroundReplaceNode`)
+Bria's newer, richer generative background-replace model (fal endpoint `fal-ai/bria/background/replace`), separate from the V2 above. Adds reference-image guidance, prompt refinement, a fast/quality toggle, and multiple variations per run.
+- **Inputs:** `image`, `prompt`, `api_key` · optional: `ref_image` (IMAGE - reference background to guide the look), `negative_prompt`, `num_images` (1-4), `refine_prompt` (default ON), `fast` (ON = faster, OFF = higher quality), `seed` (-1 = random), `sync_mode`
 - **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
 
 ### Video-to-video
@@ -241,7 +255,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <33 node files>
+│   └── <34 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md
