@@ -92,9 +92,9 @@ Cuts out the subject with Bria RMBG 2.0 (`fal-ai/bria/background/remove`) and co
 - **Inputs:** `image`, `hex_color` (e.g. `#F5F5F5`), `api_key` · optional: `edge_feather` (0-15px, softens the cutout edge), `sync_mode`
 - **Outputs:** `image` (IMAGE), `info` (STRING - resolved hex + source cutout URL)
 
-#### Bria Background Replace (`SupersideBriaReplaceBackgroundNode`)
-Prompt-driven background replacement with realistic lighting/perspective, using Bria's current Background Replace model (fal endpoint `fal-ai/bria/background/replace` - the richer model, not the older basic `bria/replace-background`). Guide the new background with a text prompt and/or a reference image, and generate several variations at once. Use this when you want a *scene*, not an exact flat color (for that, use the Standardizer above).
-- **Inputs:** `image`, `prompt`, `api_key` · optional: `ref_image` (IMAGE - reference background to guide the look), `negative_prompt`, `num_images` (1-4), `refine_prompt` (default ON), `fast` (ON = faster, OFF = higher quality), `seed` (-1 = random), `sync_mode`
+#### Bria Replace Background V2 (`SupersideBriaReplaceBackgroundNode`)
+Prompt-driven background replacement with realistic lighting/perspective, using Bria's Replace Background V2 model (fal endpoint `bria/replace-background`). Use this when you want a *scene*, not an exact flat color (for that, use the Standardizer above).
+- **Inputs:** `image`, `prompt`, `api_key` · optional: `negative_prompt`, `steps_num`, `seed` (-1 = random), `sync_mode`
 - **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
 
 ### Video-to-video

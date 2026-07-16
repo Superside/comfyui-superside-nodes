@@ -14,15 +14,13 @@ class SupersideBriaReplaceBackgroundNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """
-    Bria Background Replace Node: Replace an image's background using Bria's
-    newer Background Replace model on fal.ai (endpoint
-    "fal-ai/bria/background/replace").
+    Bria Replace Background V2 Node: Replace an image's background using
+    Bria's Replace Background V2 model on fal.ai (endpoint id
+    "bria/replace-background" - note there is no "fal-ai/" prefix on this
+    one; the prefixed form 404s).
 
-    This is the richer, current background-replacement endpoint - NOT the
-    older basic "bria/replace-background" (which only takes a prompt +
-    steps_num). It supports guiding the new background with a reference
-    image, prompt refinement, a fast/quality toggle, and generating several
-    variations at once. Trained on licensed data for commercial use.
+    Generates a new background with realistic lighting and perspective
+    from a text prompt, trained on licensed data for commercial use.
     """
 
     @classmethod
@@ -40,10 +38,6 @@ class SupersideBriaReplaceBackgroundNode(
                 "api_key": API_KEY_INPUT_SPEC,
             },
             "optional": {
-                "ref_image": (
-                    "IMAGE",
-                    {"tooltip": "Optional reference image to guide the new background's look, instead of (or alongside) the text prompt."},
-                ),
                 "negative_prompt": (
                     "STRING",
                     {
@@ -52,18 +46,7 @@ class SupersideBriaReplaceBackgroundNode(
                         "placeholder": "Describe what to avoid in the background",
                     },
                 ),
-                "num_images": (
-                    "INT",
-                    {"default": 1, "min": 1, "max": 4, "tooltip": "How many background variations to generate."},
-                ),
-                "refine_prompt": (
-                    "BOOLEAN",
-                    {"default": True, "tooltip": "Let Bria refine/expand your prompt for better results."},
-                ),
-                "fast": (
-                    "BOOLEAN",
-                    {"default": True, "tooltip": "ON = faster model; OFF = higher-quality (slower) model."},
-                ),
+                "steps_num": ("INT", {"default": 30, "min": 1, "max": 100}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647, "tooltip": "-1 = random"}),
                 "sync_mode": ("BOOLEAN", {"default": False}),
             },
@@ -78,35 +61,24 @@ class SupersideBriaReplaceBackgroundNode(
     FUNCTION = "generate"
     OUTPUT_NODE = True
     DESCRIPTION = (
-        "Replace an image's background using Bria Background Replace on fal.ai "
-        "(endpoint fal-ai/bria/background/replace - the richer current model, "
-        "not the basic bria/replace-background). Guide it with a text prompt "
-        "and/or a reference image; supports multiple variations."
+        "Replace an image's background using Bria Replace Background V2 on "
+        "fal.ai (endpoint bria/replace-background). Generates realistic "
+        "lighting and perspective from a text prompt."
     )
 
     def prepare_arguments(self, client, image, prompt, **kwargs):
         image_url = self.upload_image(client, image)
 
-        arguments = {"image_url": image_url}
-
-        if prompt and prompt.strip():
-            arguments["prompt"] = prompt.strip()
-
-        ref_image = kwargs.get("ref_image")
-        if ref_image is not None:
-            arguments["ref_image_url"] = self.upload_image(client, ref_image)
+        arguments = {
+            "image_url": image_url,
+            "prompt": prompt,
+        }
 
         if kwargs.get("negative_prompt"):
             arguments["negative_prompt"] = kwargs["negative_prompt"]
 
-        if kwargs.get("num_images") is not None:
-            arguments["num_images"] = kwargs["num_images"]
-
-        if kwargs.get("refine_prompt") is not None:
-            arguments["refine_prompt"] = kwargs["refine_prompt"]
-
-        if kwargs.get("fast") is not None:
-            arguments["fast"] = kwargs["fast"]
+        if kwargs.get("steps_num") is not None:
+            arguments["steps_num"] = kwargs["steps_num"]
 
         seed = kwargs.get("seed", -1)
         if seed is not None and seed != -1:
@@ -121,15 +93,15 @@ class SupersideBriaReplaceBackgroundNode(
         try:
             client = self.get_client(api_key)
             arguments = self.prepare_arguments(client, image, prompt, **kwargs)
-            result = self.call_api(client, "fal-ai/bria/background/replace", arguments)
+            result = self.call_api(client, "bria/replace-background", arguments)
 
-            # This endpoint returns an "images" list.
-            images = self.process_images(result)
+            # This endpoint returns a single "image" object, not an "images" list.
+            image_data = result.get("image")
+            if not isinstance(image_data, dict) or "url" not in image_data:
+                raise RuntimeError("No image was generated by the API.")
 
-            first_url = ""
-            if isinstance(result.get("images"), list) and result["images"]:
-                first_url = result["images"][0].get("url", "")
-            info = first_url
+            images = self.process_images({"images": [image_data]})
+            info = image_data.get("url", "")
 
             if unique_id is not None and extra_pnginfo is not None:
                 if (
@@ -147,5 +119,5 @@ class SupersideBriaReplaceBackgroundNode(
 
             return {"ui": {"text": [info]}, "result": (images[0], info)}
         except Exception as e:
-            logger.error(f"Bria background replace failed: {str(e)}")
-            raise RuntimeError(f"Bria background replace failed: {str(e)}") from e
+            logger.error(f"Bria replace background failed: {str(e)}")
+            raise RuntimeError(f"Bria replace background failed: {str(e)}") from e
