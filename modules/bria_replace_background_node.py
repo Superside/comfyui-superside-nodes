@@ -14,8 +14,10 @@ class SupersideBriaReplaceBackgroundNode(
     SupersideFalNode, ImageProcessingMixin, APIClientMixin
 ):
     """
-    Bria Replace Background Node: Replace an image's background using
-    bria/replace-background.
+    Bria Replace Background V2 Node: Replace an image's background using
+    Bria's Replace Background V2 model on fal.ai (endpoint id
+    "bria/replace-background" - note there is no "fal-ai/" prefix on this
+    one; the prefixed form 404s).
 
     Generates a new background with realistic lighting and perspective
     from a text prompt, trained on licensed data for commercial use.
@@ -59,8 +61,9 @@ class SupersideBriaReplaceBackgroundNode(
     FUNCTION = "generate"
     OUTPUT_NODE = True
     DESCRIPTION = (
-        "Replace an image's background using Bria Replace Background on fal.ai. "
-        "Generates realistic lighting and perspective from a text prompt."
+        "Replace an image's background using Bria Replace Background V2 on "
+        "fal.ai (endpoint bria/replace-background). Generates realistic "
+        "lighting and perspective from a text prompt."
     )
 
     def prepare_arguments(self, client, image, prompt, **kwargs):

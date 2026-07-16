@@ -92,8 +92,8 @@ Cuts out the subject with Bria RMBG 2.0 (`fal-ai/bria/background/remove`) and co
 - **Inputs:** `image`, `hex_color` (e.g. `#F5F5F5`), `api_key` · optional: `edge_feather` (0-15px, softens the cutout edge), `sync_mode`
 - **Outputs:** `image` (IMAGE), `info` (STRING - resolved hex + source cutout URL)
 
-#### Bria Replace Background (`SupersideBriaReplaceBackgroundNode`)
-Prompt-driven background replacement with realistic lighting/perspective. Use this when you want a *scene*, not an exact flat color (for that, use the Standardizer above).
+#### Bria Replace Background V2 (`SupersideBriaReplaceBackgroundNode`)
+Prompt-driven background replacement with realistic lighting/perspective, using Bria's Replace Background V2 model (fal endpoint `bria/replace-background`). Use this when you want a *scene*, not an exact flat color (for that, use the Standardizer above).
 - **Inputs:** `image`, `prompt`, `api_key` · optional: `negative_prompt`, `steps_num`, `seed` (-1 = random), `sync_mode`
 - **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
 

@@ -118,7 +118,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideAnyLLMTextNode": "Superside Any LLM Text",
     "SupersideAnyLLMVisionNode": "Superside Any LLM Vision",
     "SupersideBriaBackgroundStandardizerNode": "Superside Bria Background Standardizer (Hex Color)",
-    "SupersideBriaReplaceBackgroundNode": "Superside Bria Replace Background",
+    "SupersideBriaReplaceBackgroundNode": "Superside Bria Replace Background V2",
     "SupersideFlorence2CaptionNode": "Superside Florence-2 Detailed Caption",
     "SupersideFlorence2RegionSelectorNode": "Superside Florence-2 Smart Region Selector",
     "SupersideFluxKontextMaxMultiImageNode": "Superside Flux Kontext Max Multi-Image Node",
