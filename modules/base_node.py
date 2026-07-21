@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import logging
+import os
 
 import fal_client
 import numpy as np
@@ -47,24 +48,43 @@ class SupersideFalNode:
     """
     Base class for Superside's fal.ai ComfyUI nodes.
 
-    Unlike the internal fal-flux-nodes package this is derived from, there is
-    no config.ini or FAL_KEY environment variable fallback here. Every node
-    requires an explicit `api_key` input, provided per-workflow by whoever set
-    it up (the project lead hands out the key - it is never baked into this
-    repo).
+    There is no config.ini and the key is never baked into this repo. Every
+    node exposes an explicit `api_key` input, and the normal flow is to paste
+    the key there (the project lead hands it out per-workflow).
+
+    As an OPT-IN convenience, if the `api_key` input is left blank the node
+    falls back to the `FAL_KEY` environment variable. This exists for
+    automated/headless deployments (e.g. a Replicate pipeline) that would
+    otherwise have to embed the key as literal text inside the workflow JSON -
+    where it can leak into request logs - and can instead supply it via a
+    redacted environment variable. When a key is pasted into the input, the
+    fallback never engages, so the manual flow is completely unchanged.
+
+    Note: only rely on the env fallback in isolated, single-tenant
+    deployments where whoever can submit a workflow is trusted with the key.
+    On a shared multi-tenant ComfyUI backend, keep passing an explicit
+    per-workflow `api_key` (the input requirement is the access-control gate).
     """
 
     CATEGORY = "Superside"
 
     @staticmethod
     def get_client(api_key):
-        """Build a fal.ai client scoped to the given key. No global state."""
-        if not api_key or not api_key.strip():
+        """
+        Build a fal.ai client scoped to the given key. No global state.
+
+        Falls back to the FAL_KEY environment variable only when `api_key` is
+        blank, so callers that pass an explicit key (the default flow) see no
+        behavior change.
+        """
+        resolved_key = (api_key or "").strip() or os.environ.get("FAL_KEY", "").strip()
+        if not resolved_key:
             raise ValueError(
-                "api_key is required. Ask your project lead for the fal.ai "
-                "API key and paste it into the api_key input of this node."
+                "api_key is required (or set the FAL_KEY environment variable). "
+                "Ask your project lead for the fal.ai API key and paste it into "
+                "the api_key input of this node."
             )
-        return fal_client.SyncClient(key=api_key.strip())
+        return fal_client.SyncClient(key=resolved_key)
 
 
 class ImageProcessingMixin:

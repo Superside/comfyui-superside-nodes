@@ -28,9 +28,11 @@ Custom ComfyUI nodes wrapping [fal.ai](https://fal.ai) models for image editing,
 
 ## API key
 
-**There is no config file and no environment variable for the fal.ai API key.** Every node has a required `api_key` text input - paste your key directly into that widget on each node. Ask your project lead for the key; it is never stored in this repository.
+**There is no config file and the key is never stored in this repository.** Every node has an `api_key` text input - the normal flow is to paste your key directly into that widget on each node. Ask your project lead for the key.
 
-If `api_key` is left empty, the node fails immediately with a clear error instead of silently using someone else's key or a stale config file.
+**Opt-in `FAL_KEY` fallback:** if the `api_key` input is left blank, the node falls back to the `FAL_KEY` environment variable. This is for automated/headless deployments (e.g. a Replicate pipeline) that would otherwise have to embed the key as literal text inside the workflow JSON - where it can leak into request logs - and can instead pass it via a redacted env var. When a key is pasted into the input, the fallback never engages, so the manual flow is unchanged. If both are blank, the node fails immediately with a clear error.
+
+> Only rely on the env fallback in **isolated, single-tenant** deployments where whoever can submit a workflow is trusted with the key. On a **shared multi-tenant** ComfyUI backend, keep passing an explicit per-workflow `api_key` - that input requirement is the access-control gate.
 
 ## Node reference
 
