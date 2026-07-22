@@ -87,6 +87,11 @@ Single or dual-reference editing with Wan 2.5.
 - **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`, `negative_prompt`, `image_size`, `num_images` (1-4), `seed`
 - **Outputs:** `IMAGE`
 
+#### Image Retouch (`SupersideImageRetouchNode`)
+One-click retouch/clean-up of an image (skin, blemishes, imperfections) using fal.ai's image-editing retouch model (`fal-ai/image-editing/retouch`). No prompt needed - just connect an image.
+- **Inputs:** `image`, `api_key` · optional: `guidance_scale` (default 3.5), `num_inference_steps` (default 30), `lora_scale` (retouch strength, default 1.0), `seed` (-1 = random), `enable_safety_checker`, `sync_mode`
+- **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
+
 ### Background tools
 
 There are three Bria background nodes - pick by what you actually want:
@@ -257,7 +262,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <34 node files>
+│   └── <35 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md

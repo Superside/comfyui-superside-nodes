@@ -12,6 +12,7 @@ try:
     from .modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
     from .modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
     from .modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
+    from .modules.image_retouch_node import SupersideImageRetouchNode
     from .modules.juggernaut_flux_pro_img2img_node import SupersideJuggernautFluxProImg2ImgNode
     from .modules.kling_21_image_to_video_node import SupersideKling21ImageToVideoNode
     from .modules.kling_25_turbo_pro_image_to_video_node import SupersideKling25TurboProImageToVideoNode
@@ -57,6 +58,7 @@ except ImportError:
     from modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
     from modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
     from modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
+    from modules.image_retouch_node import SupersideImageRetouchNode
     from modules.juggernaut_flux_pro_img2img_node import SupersideJuggernautFluxProImg2ImgNode
     from modules.kling_21_image_to_video_node import SupersideKling21ImageToVideoNode
     from modules.kling_25_turbo_pro_image_to_video_node import SupersideKling25TurboProImageToVideoNode
@@ -93,6 +95,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideGPTImage2EditNode": SupersideGPTImage2EditNode,
     "SupersideGrokImagineImageQualityEditNode": SupersideGrokImagineImageQualityEditNode,
     "SupersideIdeogramUpscaleNode": SupersideIdeogramUpscaleNode,
+    "SupersideImageRetouchNode": SupersideImageRetouchNode,
     "SupersideJuggernautFluxProImg2ImgNode": SupersideJuggernautFluxProImg2ImgNode,
     "SupersideKling21ImageToVideoNode": SupersideKling21ImageToVideoNode,
     "SupersideKling25TurboProImageToVideoNode": SupersideKling25TurboProImageToVideoNode,
@@ -130,6 +133,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideGPTImage2EditNode": "Superside GPT Image 2 Edit",
     "SupersideGrokImagineImageQualityEditNode": "Superside Grok Imagine Image Quality Edit",
     "SupersideIdeogramUpscaleNode": "Superside Ideogram Upscale",
+    "SupersideImageRetouchNode": "Superside Image Retouch",
     "SupersideJuggernautFluxProImg2ImgNode": "Superside Juggernaut Flux Pro Image-to-Image",
     "SupersideKling21ImageToVideoNode": "Superside Kling 2.1 Image-to-Video",
     "SupersideKling25TurboProImageToVideoNode": "Superside Kling 2.5 Turbo Pro Image-to-Video",
