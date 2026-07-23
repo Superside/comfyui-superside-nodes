@@ -241,6 +241,11 @@ Scales an image so its longest side hits a target size, preserving aspect ratio 
 - **Inputs:** `image`, `max_long_side` (default 2048) · optional: `only_downscale` (default ON - only shrink, never enlarge; OFF forces the long side to exactly the target), `resample` (lanczos/bicubic/bilinear/nearest, default lanczos)
 - **Outputs:** `image` (IMAGE), `width` (INT), `height` (INT)
 
+#### Color Grading (`SupersideColorGradingNode`)
+Local color grading: brightness, contrast, saturation (multiplicative factors, 1.0 = no change) plus additive per-channel R/G/B offsets. No API, no model call. Alpha is preserved.
+- **Inputs:** `image`, `brightness` (0-3, default 1), `contrast` (0-3, default 1), `saturation` (0-3, default 1), `R`/`G`/`B` (-255 to 255 offset, default 0)
+- **Outputs:** `image` (IMAGE)
+
 ### Utility (no API key needed)
 
 These nodes make no fal.ai calls, so they don't have an `api_key` input.
@@ -262,7 +267,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <35 node files>
+│   └── <36 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md
