@@ -246,6 +246,11 @@ Local color grading: brightness, contrast, saturation (multiplicative factors, 1
 - **Inputs:** `image`, `brightness` (0-3, default 1), `contrast` (0-3, default 1), `saturation` (0-3, default 1), `R`/`G`/`B` (-255 to 255 offset, default 0)
 - **Outputs:** `image` (IMAGE)
 
+#### Color Match (`SupersideColorMatchNode`)
+Transfers the color character of a **reference** image onto another image (Reinhard mean/std transfer in LAB or RGB). The right fix for generative color drift when you still have the clean original: set `image` = the drifted edit and `reference` = the original, and it pulls skin/hair/lighting back toward the source. Works even when pose/framing changed, since it matches global statistics, not pixels. `ignore_background` measures color from the subject only (not the large white backdrop) and leaves the background untouched — ideal for catalogue shots on white.
+- **Inputs:** `image`, `reference` · optional: `strength` (0-1, default 1), `method` (LAB (Reinhard) / RGB), `match_luminance` (default ON — also matches brightness/contrast), `ignore_background` (default ON)
+- **Outputs:** `image` (IMAGE)
+
 #### White Balance (`SupersideWhiteBalanceNode`)
 Neutralizes a color cast by calibrating RGB from a neutral/white reference - built for the warm/red **color drift that accumulates when you run an image through a generative editor repeatedly** (e.g. Nano Banana Pro/V2). Measures a reference and rescales each channel so "white" reads as white again, preserving brightness. Local, no API key.
 - **Inputs:** `image`, `mode` (manual_sample / auto_white_patch / gray_world) · optional: `sample_x`, `sample_y`, `sample_size` (manual patch position/size), `auto_percentile` (auto mode), `strength` (0-1, default 1), `preserve_luminance` (default ON)
@@ -273,7 +278,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <37 node files>
+│   └── <38 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md

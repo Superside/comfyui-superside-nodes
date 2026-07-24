@@ -6,6 +6,7 @@ try:
     from .modules.bria_background_standardizer_node import SupersideBriaBackgroundStandardizerNode
     from .modules.bria_replace_background_node import SupersideBriaReplaceBackgroundNode
     from .modules.color_grading_node import SupersideColorGradingNode
+    from .modules.color_match_node import SupersideColorMatchNode
     from .modules.florence_2_caption_node import SupersideFlorence2CaptionNode
     from .modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
     from .modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
@@ -54,6 +55,7 @@ except ImportError:
     from modules.bria_background_standardizer_node import SupersideBriaBackgroundStandardizerNode
     from modules.bria_replace_background_node import SupersideBriaReplaceBackgroundNode
     from modules.color_grading_node import SupersideColorGradingNode
+    from modules.color_match_node import SupersideColorMatchNode
     from modules.florence_2_caption_node import SupersideFlorence2CaptionNode
     from modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
     from modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
@@ -93,6 +95,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideBriaBackgroundStandardizerNode": SupersideBriaBackgroundStandardizerNode,
     "SupersideBriaReplaceBackgroundNode": SupersideBriaReplaceBackgroundNode,
     "SupersideColorGradingNode": SupersideColorGradingNode,
+    "SupersideColorMatchNode": SupersideColorMatchNode,
     "SupersideFlorence2CaptionNode": SupersideFlorence2CaptionNode,
     "SupersideFlorence2RegionSelectorNode": SupersideFlorence2RegionSelectorNode,
     "SupersideFluxKontextMaxMultiImageNode": SupersideFluxKontextMaxMultiImageNode,
@@ -133,6 +136,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideBriaBackgroundStandardizerNode": "Superside Bria Background Standardizer (Hex Color)",
     "SupersideBriaReplaceBackgroundNode": "Superside Bria Replace Background V2",
     "SupersideColorGradingNode": "Superside Color Grading",
+    "SupersideColorMatchNode": "Superside Color Match",
     "SupersideFlorence2CaptionNode": "Superside Florence-2 Detailed Caption",
     "SupersideFlorence2RegionSelectorNode": "Superside Florence-2 Smart Region Selector",
     "SupersideFluxKontextMaxMultiImageNode": "Superside Flux Kontext Max Multi-Image Node",
