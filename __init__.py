@@ -36,6 +36,7 @@ try:
     from .modules.topaz_upscale_image_node import SupersideTopazUpscaleImageNode
     from .modules.wan_25_image_to_image_node import SupersideWan25ImageToImageNode
     from .modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
+    from .modules.white_balance_node import SupersideWhiteBalanceNode
 
 except ImportError:
     # Fallback for environments where this hyphenated folder name doesn't get
@@ -83,6 +84,7 @@ except ImportError:
     from modules.topaz_upscale_image_node import SupersideTopazUpscaleImageNode
     from modules.wan_25_image_to_image_node import SupersideWan25ImageToImageNode
     from modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
+    from modules.white_balance_node import SupersideWhiteBalanceNode
 
 NODE_CLASS_MAPPINGS = {
     "SupersideAnyLLMTextNode": SupersideAnyLLMTextNode,
@@ -121,6 +123,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideTopazUpscaleImageNode": SupersideTopazUpscaleImageNode,
     "SupersideWan25ImageToImageNode": SupersideWan25ImageToImageNode,
     "SupersideWan25ImageToVideoNode": SupersideWan25ImageToVideoNode,
+    "SupersideWhiteBalanceNode": SupersideWhiteBalanceNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -160,6 +163,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideTopazUpscaleImageNode": "Superside Topaz Upscale Image",
     "SupersideWan25ImageToImageNode": "Superside Wan 2.5 Image-to-Image",
     "SupersideWan25ImageToVideoNode": "Superside Wan 2.5 Image-to-Video",
+    "SupersideWhiteBalanceNode": "Superside White Balance",
 }
 
 WEB_DIRECTORY = "web"

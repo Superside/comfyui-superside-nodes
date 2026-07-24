@@ -246,6 +246,12 @@ Local color grading: brightness, contrast, saturation (multiplicative factors, 1
 - **Inputs:** `image`, `brightness` (0-3, default 1), `contrast` (0-3, default 1), `saturation` (0-3, default 1), `R`/`G`/`B` (-255 to 255 offset, default 0)
 - **Outputs:** `image` (IMAGE)
 
+#### White Balance (`SupersideWhiteBalanceNode`)
+Neutralizes a color cast by calibrating RGB from a neutral/white reference - built for the warm/red **color drift that accumulates when you run an image through a generative editor repeatedly** (e.g. Nano Banana Pro/V2). Measures a reference and rescales each channel so "white" reads as white again, preserving brightness. Local, no API key.
+- **Inputs:** `image`, `mode` (manual_sample / auto_white_patch / gray_world) · optional: `sample_x`, `sample_y`, `sample_size` (manual patch position/size), `auto_percentile` (auto mode), `strength` (0-1, default 1), `preserve_luminance` (default ON)
+- **Outputs:** `image` (IMAGE)
+- **Tip:** `manual_sample` is the most reliable - point `sample_x`/`sample_y` at an area you know should be white/neutral (e.g. a catalogue's white background).
+
 ### Utility (no API key needed)
 
 These nodes make no fal.ai calls, so they don't have an `api_key` input.
@@ -267,7 +273,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <36 node files>
+│   └── <37 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md
