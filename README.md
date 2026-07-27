@@ -63,8 +63,8 @@ Same family as Pro, with extra controls: seed, safety tolerance, web search grou
 - **Outputs:** `images` (IMAGE), `description` (STRING)
 
 #### GPT Image 2 Edit (`SupersideGPTImage2EditNode`)
-OpenAI GPT Image 2 editing with mask-based inpainting. Sizing is driven by a single `size` control: pick `match input (auto)`, an aspect ratio, or `custom pixels`; `resolution` (1K/2K/4K) then sets how big. GPT Image 2 caps total output to ~8 MP, so 4K gives ~3840 px on the long edge at 16:9 (true UHD), scaling down for squarer ratios (~2880 at 1:1). Uses fal's queued execution path internally (polls until complete).
-- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`-`image_6`, `mask_image`, `size` (`match input (auto)` / aspect ratio / `custom pixels`), `resolution` (1K/2K/4K, used with an aspect ratio), `width`/`height` (used with `custom pixels`, multiples of 16), `quality` (auto/low/medium/high), `num_images`, `output_format`, `sync_mode`
+OpenAI GPT Image 2 editing with mask-based inpainting. Sizing is driven by a single `size` control. Default `match input + resolution` keeps the input image's own aspect ratio (a tall portrait stays tall) and scales it to the chosen `resolution` - so you just pick 4K for the biggest output without knowing the exact ratio. Other options: `match input (original)` (keep the input's size), a fixed aspect ratio, or `custom pixels`. GPT Image 2 caps total output to ~8 MP, so 4K gives ~3840 px on the long edge at 16:9 (true UHD), ~2880 at 1:1; a portrait input scales to ~2528x3264. Uses fal's queued execution path internally (polls until complete).
+- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`-`image_6`, `mask_image`, `size` (`match input + resolution` / `match input (original)` / aspect ratio / `custom pixels`), `resolution` (1K/2K/4K, used with `match input + resolution` or an aspect ratio), `width`/`height` (used with `custom pixels`, multiples of 16), `quality` (auto/low/medium/high), `num_images`, `output_format`, `sync_mode`
 - **Outputs:** `images` (IMAGE), `info` (STRING)
 
 #### Grok Imagine Image Quality Edit (`SupersideGrokImagineImageQualityEditNode`)

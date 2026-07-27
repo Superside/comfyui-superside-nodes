@@ -20,11 +20,14 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
     """
 
     # One "size" control drives everything. Pick the SHAPE here:
-    #   - "match input (auto)": let the model infer the size from the input image
+    #   - "match input + resolution": keep the input image's aspect ratio, but
+    #     scale it up to the chosen resolution (portrait stays portrait, sized 4K)
+    #   - "match input (original)": let the model infer/keep the input's own size
     #   - an aspect ratio (e.g. "16:9"): the resolution control below sets how big
     #   - "custom pixels": use the width/height fields
     SIZE_OPTIONS = [
-        "match input (auto)",
+        "match input + resolution",
+        "match input (original)",
         "1:1",
         "4:5",
         "5:4",
@@ -71,8 +74,8 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                 "size": (
                     cls.SIZE_OPTIONS,
                     {
-                        "default": "match input (auto)",
-                        "tooltip": "Output shape. Pick an aspect ratio and set 'resolution' below for how big. 'match input (auto)' keeps the input's size; 'custom pixels' uses width/height.",
+                        "default": "match input + resolution",
+                        "tooltip": "Output shape. 'match input + resolution' keeps your image's aspect (portrait stays portrait) and scales it to 'resolution' below - just pick 4K for the biggest. 'match input (original)' keeps the input's own size. Or pick a fixed aspect ratio / 'custom pixels'.",
                     },
                 ),
                 "resolution": (
@@ -145,10 +148,38 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
             "height": height,
         }
 
+    def _size_from_input_aspect(self, image, resolution):
+        """
+        Build {width,height} that keeps the input image's aspect ratio, scaled so
+        the long edge targets the chosen resolution. GPT Image 2 clamps to its
+        ~8 MP budget while preserving the aspect, so a tall portrait stays tall.
+        Falls back to "auto" if the input dimensions can't be read.
+        """
+        try:
+            h = int(image.shape[-3])
+            w = int(image.shape[-2])
+        except Exception:
+            return "auto"
+        if w <= 0 or h <= 0:
+            return "auto"
+
+        long_edge = self.LONG_EDGE_MAP.get(resolution, 2048)
+        if w >= h:
+            width = long_edge
+            height = long_edge * h / w
+        else:
+            height = long_edge
+            width = long_edge * w / h
+        return {
+            "width": self._round_to_multiple_of_16(width),
+            "height": self._round_to_multiple_of_16(height),
+        }
+
     def _resolve_image_size(self, **kwargs):
         """
         Turn the single `size` control into the API's image_size value:
-          - "match input (auto)" (or None) -> "auto"
+          - "match input + resolution"     -> {width,height} from input aspect + resolution
+          - "match input (original)"/None   -> "auto" (model keeps the input's size)
           - an aspect ratio ("16:9", ...)  -> {width,height} from ratio + resolution
           - "custom pixels"                -> {width,height} from the width/height fields
         A legacy bridge keeps old workflows saved with `size_mode` working.
@@ -166,7 +197,13 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                 preset = kwargs.get("image_size", "auto")
                 return preset if preset else "auto"
 
-        if size is None or size == "match input (auto)":
+        if size == "match input + resolution":
+            return self._size_from_input_aspect(
+                kwargs.get("image_1"), kwargs.get("resolution", "2K")
+            )
+
+        # "match input (original)", the old "match input (auto)", or None -> auto
+        if size is None or size in ("match input (original)", "match input (auto)"):
             return "auto"
 
         if size == "custom pixels":
