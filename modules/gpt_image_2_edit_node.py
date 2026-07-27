@@ -1,4 +1,9 @@
+import io
 import logging
+
+import numpy as np
+import torch
+from PIL import Image
 
 from .base_node import (
     SupersideFalNode,
@@ -103,6 +108,20 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                         "max": 4096,
                         "step": 16,
                         "tooltip": "Only used when size is 'custom pixels'. Must be a multiple of 16.",
+                    },
+                ),
+                "invert_mask": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Mask convention is WHITE = edit this area, BLACK = keep. Turn ON if your mask is inverted (the area you want to change is black).",
+                    },
+                ),
+                "keep_unmasked_area": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "After generating, paste the result back ONLY inside the mask, so everything outside the mask stays pixel-identical to the input. GPT Image 2 re-renders the whole image, so leave this ON for a true localized edit. (Only applies when a mask is connected.)",
                     },
                 ),
                 "quality": (["auto", "low", "medium", "high"], {"default": "high"}),
@@ -221,6 +240,45 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
         # Any other string (e.g. a legacy preset like "square_hd") passes through.
         return size
 
+    @staticmethod
+    def _tensor_to_pil(tensor):
+        """ComfyUI IMAGE/MASK tensor -> RGB PIL. Accepts [B,H,W,C], [H,W,C],
+        [B,H,W] or [H,W] (a single-channel MASK)."""
+        arr = tensor.cpu().numpy() if isinstance(tensor, torch.Tensor) else np.asarray(tensor)
+        if arr.ndim == 4:
+            arr = arr[0]
+        if arr.ndim == 2:  # single-channel mask
+            arr = np.stack([arr] * 3, axis=-1)
+        if arr.dtype != np.uint8:
+            arr = (np.clip(arr, 0.0, 1.0) * 255).astype(np.uint8) if arr.max() <= 1.0 else arr.astype(np.uint8)
+        return Image.fromarray(arr[..., :3], "RGB")
+
+    def _mask_to_grayscale(self, mask_tensor, invert):
+        """Build the grayscale mask GPT Image 2 expects: WHITE = edit, BLACK =
+        keep. Optionally invert if the user's mask uses the opposite convention."""
+        gray = self._tensor_to_pil(mask_tensor).convert("L")
+        if invert:
+            gray = Image.eval(gray, lambda p: 255 - p)
+        return gray
+
+    @staticmethod
+    def _upload_pil_png(client, pil_image):
+        buffered = io.BytesIO()
+        pil_image.save(buffered, format="PNG")
+        return client.upload(buffered.getvalue(), "image/png")
+
+    def _composite_unmasked(self, out_tensor, orig_tensor, mask_gray):
+        """Keep everything outside the mask identical to the input: blend the
+        model output with the original using the mask (white=use output)."""
+        out = out_tensor[0].cpu().numpy().astype(np.float32)  # H,W,C in 0..1
+        h, w = out.shape[:2]
+        orig_pil = self._tensor_to_pil(orig_tensor).resize((w, h), Image.LANCZOS)
+        orig = np.asarray(orig_pil).astype(np.float32) / 255.0
+        m = np.asarray(mask_gray.resize((w, h), Image.LANCZOS)).astype(np.float32) / 255.0
+        m = m[..., None]
+        blended = out[..., :3] * m + orig * (1.0 - m)
+        return torch.from_numpy(blended.astype(np.float32)).unsqueeze(0)
+
     def prepare_image_urls(self, client, **kwargs):
         """Prepare list of image URLs from input images."""
         image_urls = []
@@ -250,8 +308,12 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
         }
 
         # The fal endpoint field is `mask_url` (not `mask_image_url`); using the
-        # wrong name makes the mask be silently ignored.
-        if kwargs.get("mask_image") is not None:
+        # wrong name makes the mask be silently ignored. GPT Image 2 reads the
+        # mask as grayscale (WHITE = edit, BLACK = keep), not via alpha.
+        mask_gray = kwargs.get("_mask_gray")
+        if mask_gray is not None:
+            arguments["mask_url"] = self._upload_pil_png(client, mask_gray)
+        elif kwargs.get("mask_image") is not None:
             arguments["mask_url"] = self.upload_image(client, kwargs["mask_image"])
 
         image_size = self._resolve_image_size(**kwargs)
@@ -276,10 +338,30 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
         """Main image editing function."""
         try:
             client = self.get_client(api_key)
+
+            # Build the grayscale mask once (honoring invert) so it can drive
+            # both the API call and the local composite.
+            mask_gray = None
+            if kwargs.get("mask_image") is not None:
+                mask_gray = self._mask_to_grayscale(
+                    kwargs["mask_image"], kwargs.get("invert_mask", False)
+                )
+                kwargs["_mask_gray"] = mask_gray
+
             arguments = self.prepare_arguments(client, prompt, **kwargs)
             result = self.call_api(client, "openai/gpt-image-2/edit", arguments)
 
             images = self.process_images(result)
+            output = images[0]
+
+            # GPT Image 2 re-renders the whole frame, so pixels outside the mask
+            # drift too. Composite the result back only inside the mask to keep
+            # the rest identical to the input.
+            if mask_gray is not None and kwargs.get("keep_unmasked_area", True):
+                orig = kwargs.get("image_1")
+                if orig is not None:
+                    output = self._composite_unmasked(output, orig, mask_gray)
+
             info = ""
             if result.get("images") and isinstance(result["images"], list):
                 first_url = result["images"][0].get("url", "")
@@ -288,7 +370,7 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                 else:
                     info = first_url
 
-            return (images[0], info)
+            return (output, info)
         except Exception as e:
             logger.error(f"GPT Image 2 edit failed: {str(e)}")
             raise RuntimeError(f"GPT Image 2 edit failed: {str(e)}") from e
