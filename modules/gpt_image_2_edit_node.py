@@ -110,18 +110,25 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                         "tooltip": "Only used when size is 'custom pixels'. Must be a multiple of 16.",
                     },
                 ),
+                "send_mask_to_model": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "OFF (default): ignore mask_image entirely and edit the whole image - correct for crop-stitch pipelines where an external node handles masking. ON: send the mask to GPT Image 2 so it only edits the white area (standalone inpainting). invert_mask / keep_unmasked_area only apply when this is ON.",
+                    },
+                ),
                 "invert_mask": (
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "Mask convention is WHITE = edit this area, BLACK = keep. Turn ON if your mask is inverted (the area you want to change is black).",
+                        "tooltip": "Only used when send_mask_to_model is ON. Mask convention is WHITE = edit this area, BLACK = keep. Turn ON if your mask is inverted (the area you want to change is black).",
                     },
                 ),
                 "keep_unmasked_area": (
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "After generating, paste the result back ONLY inside the mask, so everything outside the mask stays pixel-identical to the input. GPT Image 2 re-renders the whole image, so leave this ON for a true localized edit. (Only applies when a mask is connected.)",
+                        "tooltip": "Only used when send_mask_to_model is ON. After generating, paste the result back ONLY inside the mask, so everything outside the mask stays pixel-identical to the input. GPT Image 2 re-renders the whole image, so leave this ON for a true localized edit.",
                     },
                 ),
                 "quality": (["auto", "low", "medium", "high"], {"default": "high"}),
@@ -307,14 +314,16 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
             "image_urls": image_urls,
         }
 
-        # The fal endpoint field is `mask_url` (not `mask_image_url`); using the
-        # wrong name makes the mask be silently ignored. GPT Image 2 reads the
-        # mask as grayscale (WHITE = edit, BLACK = keep), not via alpha.
-        mask_gray = kwargs.get("_mask_gray")
-        if mask_gray is not None:
-            arguments["mask_url"] = self._upload_pil_png(client, mask_gray)
-        elif kwargs.get("mask_image") is not None:
-            arguments["mask_url"] = self.upload_image(client, kwargs["mask_image"])
+        # Only send a mask when explicitly enabled. Crop-stitch pipelines feed a
+        # mask for their OWN nodes and expect GPT to edit the whole crop, so the
+        # node ignores mask_image by default. The fal endpoint field is
+        # `mask_url`, and GPT Image 2 reads it as grayscale (WHITE = edit).
+        if kwargs.get("send_mask_to_model", False):
+            mask_gray = kwargs.get("_mask_gray")
+            if mask_gray is not None:
+                arguments["mask_url"] = self._upload_pil_png(client, mask_gray)
+            elif kwargs.get("mask_image") is not None:
+                arguments["mask_url"] = self.upload_image(client, kwargs["mask_image"])
 
         image_size = self._resolve_image_size(**kwargs)
         if image_size is not None:
@@ -340,9 +349,10 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
             client = self.get_client(api_key)
 
             # Build the grayscale mask once (honoring invert) so it can drive
-            # both the API call and the local composite.
+            # both the API call and the local composite - only when the user
+            # opts in. Off by default so crop-stitch pipelines are unaffected.
             mask_gray = None
-            if kwargs.get("mask_image") is not None:
+            if kwargs.get("send_mask_to_model", False) and kwargs.get("mask_image") is not None:
                 mask_gray = self._mask_to_grayscale(
                     kwargs["mask_image"], kwargs.get("invert_mask", False)
                 )
