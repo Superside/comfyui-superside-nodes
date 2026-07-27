@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+import time
 
 import fal_client
 import numpy as np
@@ -270,9 +271,50 @@ class VideoProcessingMixin:
 class APIClientMixin:
     """Shared fal.ai API-call helper for Superside nodes."""
 
+    # fal/upstream hiccups worth retrying (server-side, not our request).
+    TRANSIENT_MARKERS = (
+        "downstream_service_unavailable",
+        "downstream service unavailable",
+        "gateway timeout",
+        "service unavailable",
+        "502",
+        "503",
+        "504",
+        "temporarily unavailable",
+        "internalservererror",
+        "internal server error",
+        "connection reset",
+        "read timeout",
+    )
+    # Backoff schedule (seconds) between retries on transient errors.
+    RETRY_BACKOFF = (5, 15, 30)
+
+    def _is_transient_error(self, err):
+        msg = str(err).lower()
+        return any(marker in msg for marker in self.TRANSIENT_MARKERS)
+
+    def _call_once(self, client, endpoint, arguments):
+        if endpoint in QUEUED_ENDPOINTS:
+            logger.info(f"Using queued API call to {endpoint}")
+            return client.subscribe(
+                endpoint,
+                arguments=arguments,
+                on_enqueue=lambda request_id: logger.info(
+                    "Submitted fal.ai request %s to %s", request_id, endpoint
+                ),
+                client_timeout=QUEUED_CLIENT_TIMEOUT,
+            )
+        logger.info(f"Using synchronous API call to {endpoint}")
+        return client.run(endpoint, arguments=arguments)
+
     def call_api(self, client, endpoint, arguments):
         """
         Call the fal.ai API with the given endpoint and arguments.
+
+        Retries automatically on transient fal/upstream errors (e.g. 504
+        Gateway Timeout / "downstream service unavailable"), which are outages
+        on fal's side, not a problem with the request. Non-transient errors
+        (validation, auth) fail immediately without retrying.
 
         Args:
             client: fal_client.SyncClient scoped to the node's api_key input.
@@ -284,26 +326,26 @@ class APIClientMixin:
         """
         logger.debug(f"API request payload: {json.dumps(arguments, indent=2)}")
 
-        try:
-            if endpoint in QUEUED_ENDPOINTS:
-                logger.info(f"Using queued API call to {endpoint}")
-                result = client.subscribe(
-                    endpoint,
-                    arguments=arguments,
-                    on_enqueue=lambda request_id: logger.info(
-                        "Submitted fal.ai request %s to %s", request_id, endpoint
-                    ),
-                    client_timeout=QUEUED_CLIENT_TIMEOUT,
-                )
-            else:
-                logger.info(f"Using synchronous API call to {endpoint}")
-                result = client.run(endpoint, arguments=arguments)
+        last_error = None
+        for attempt in range(len(self.RETRY_BACKOFF) + 1):
+            try:
+                result = self._call_once(client, endpoint, arguments)
+                logger.debug(f"API response: {json.dumps(result, indent=2)}")
+                return result
+            except Exception as e:
+                last_error = e
+                if attempt < len(self.RETRY_BACKOFF) and self._is_transient_error(e):
+                    wait = self.RETRY_BACKOFF[attempt]
+                    logger.warning(
+                        "Transient fal.ai error on %s (attempt %d/%d): %s - retrying in %ds",
+                        endpoint, attempt + 1, len(self.RETRY_BACKOFF) + 1, str(e)[:160], wait,
+                    )
+                    time.sleep(wait)
+                    continue
+                break
 
-            logger.debug(f"API response: {json.dumps(result, indent=2)}")
-            return result
-        except Exception as e:
-            logger.error(f"API error: {str(e)}")
-            raise RuntimeError(f"Failed to call fal.ai API: {str(e)}") from e
+        logger.error(f"API error: {str(last_error)}")
+        raise RuntimeError(f"Failed to call fal.ai API: {str(last_error)}") from last_error
 
 
 class DetailSheetCompositionMixin:
