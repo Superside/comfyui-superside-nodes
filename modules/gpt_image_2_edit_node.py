@@ -19,17 +19,12 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
     precise inpainting-style edits.
     """
 
-    IMAGE_SIZE_OPTIONS = [
-        "auto",
-        "square_hd",
-        "square",
-        "portrait_4_3",
-        "portrait_16_9",
-        "landscape_4_3",
-        "landscape_16_9",
-    ]
-
-    ASPECT_RATIO_OPTIONS = [
+    # One "size" control drives everything. Pick the SHAPE here:
+    #   - "match input (auto)": let the model infer the size from the input image
+    #   - an aspect ratio (e.g. "16:9"): the resolution control below sets how big
+    #   - "custom pixels": use the width/height fields
+    SIZE_OPTIONS = [
+        "match input (auto)",
         "1:1",
         "4:5",
         "5:4",
@@ -39,9 +34,18 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
         "9:16",
         "3:2",
         "2:3",
+        "custom pixels",
     ]
 
+    ASPECT_RATIOS = {"1:1", "4:5", "5:4", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"}
+
     RESOLUTION_OPTIONS = ["1K", "2K", "4K"]
+
+    # Long-edge target per resolution. GPT Image 2 caps total output to about
+    # 8 megapixels, so at "4K" the long edge lands at ~3840 px for 16:9
+    # (true UHD), ~3520 for 3:2, ~2880 for 1:1 - fal clamps to the budget while
+    # preserving the aspect ratio.
+    LONG_EDGE_MAP = {"1K": 1024, "2K": 2048, "4K": 4096}
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -64,10 +68,20 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                 "image_5": ("IMAGE",),
                 "image_6": ("IMAGE",),
                 "mask_image": ("IMAGE",),
-                "size_mode": (["preset", "aspect_ratio", "custom"], {"default": "preset"}),
-                "image_size": (cls.IMAGE_SIZE_OPTIONS, {"default": "auto"}),
-                "aspect_ratio": (cls.ASPECT_RATIO_OPTIONS, {"default": "16:9"}),
-                "resolution": (cls.RESOLUTION_OPTIONS, {"default": "1K"}),
+                "size": (
+                    cls.SIZE_OPTIONS,
+                    {
+                        "default": "match input (auto)",
+                        "tooltip": "Output shape. Pick an aspect ratio and set 'resolution' below for how big. 'match input (auto)' keeps the input's size; 'custom pixels' uses width/height.",
+                    },
+                ),
+                "resolution": (
+                    cls.RESOLUTION_OPTIONS,
+                    {
+                        "default": "2K",
+                        "tooltip": "How large the output is when 'size' is an aspect ratio. GPT Image 2 caps total size to ~8 MP, so 4K gives ~3840 px on the long edge at 16:9 (true UHD), less for squarer ratios (~2880 at 1:1).",
+                    },
+                ),
                 "width": (
                     "INT",
                     {
@@ -75,7 +89,7 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                         "min": 16,
                         "max": 4096,
                         "step": 16,
-                        "tooltip": "Used when size_mode is custom. Must be a multiple of 16.",
+                        "tooltip": "Only used when size is 'custom pixels'. Must be a multiple of 16.",
                     },
                 ),
                 "height": (
@@ -85,10 +99,10 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                         "min": 16,
                         "max": 4096,
                         "step": 16,
-                        "tooltip": "Used when size_mode is custom. Must be a multiple of 16.",
+                        "tooltip": "Only used when size is 'custom pixels'. Must be a multiple of 16.",
                     },
                 ),
-                "quality": (["low", "medium", "high"], {"default": "high"}),
+                "quality": (["auto", "low", "medium", "high"], {"default": "high"}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 4}),
                 "output_format": (["png", "jpeg", "webp"], {"default": "png"}),
                 "sync_mode": ("BOOLEAN", {"default": False}),
@@ -109,13 +123,8 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
         return max(16, int(value) // 16 * 16)
 
     def _calculate_image_size_from_aspect_ratio(self, aspect_ratio, resolution):
-        """Convert aspect ratio + resolution preset to custom dimensions."""
-        long_edge_map = {
-            "1K": 1024,
-            "2K": 2048,
-            "4K": 4096,
-        }
-        long_edge = long_edge_map[resolution]
+        """Convert aspect ratio + resolution preset to explicit dimensions."""
+        long_edge = self.LONG_EDGE_MAP.get(resolution, 2048)
 
         width_ratio, height_ratio = aspect_ratio.split(":")
         width_ratio = int(width_ratio)
@@ -135,6 +144,45 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
             "width": width,
             "height": height,
         }
+
+    def _resolve_image_size(self, **kwargs):
+        """
+        Turn the single `size` control into the API's image_size value:
+          - "match input (auto)" (or None) -> "auto"
+          - an aspect ratio ("16:9", ...)  -> {width,height} from ratio + resolution
+          - "custom pixels"                -> {width,height} from the width/height fields
+        A legacy bridge keeps old workflows saved with `size_mode` working.
+        """
+        size = kwargs.get("size")
+
+        # Backwards compatibility with the previous multi-control layout.
+        if size is None and kwargs.get("size_mode") is not None:
+            legacy_mode = kwargs.get("size_mode")
+            if legacy_mode == "aspect_ratio":
+                size = kwargs.get("aspect_ratio", "16:9")
+            elif legacy_mode == "custom":
+                size = "custom pixels"
+            else:  # "preset"
+                preset = kwargs.get("image_size", "auto")
+                return preset if preset else "auto"
+
+        if size is None or size == "match input (auto)":
+            return "auto"
+
+        if size == "custom pixels":
+            width = kwargs.get("width", 1920)
+            height = kwargs.get("height", 1080)
+            if width % 16 != 0 or height % 16 != 0:
+                raise ValueError("Custom width and height must both be multiples of 16")
+            return {"width": width, "height": height}
+
+        if size in self.ASPECT_RATIOS:
+            return self._calculate_image_size_from_aspect_ratio(
+                size, kwargs.get("resolution", "2K")
+            )
+
+        # Any other string (e.g. a legacy preset like "square_hd") passes through.
+        return size
 
     def prepare_image_urls(self, client, **kwargs):
         """Prepare list of image URLs from input images."""
@@ -164,26 +212,14 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
             "image_urls": image_urls,
         }
 
+        # The fal endpoint field is `mask_url` (not `mask_image_url`); using the
+        # wrong name makes the mask be silently ignored.
         if kwargs.get("mask_image") is not None:
-            arguments["mask_image_url"] = self.upload_image(client, kwargs["mask_image"])
+            arguments["mask_url"] = self.upload_image(client, kwargs["mask_image"])
 
-        size_mode = kwargs.get("size_mode", "preset")
-        if size_mode == "aspect_ratio":
-            arguments["image_size"] = self._calculate_image_size_from_aspect_ratio(
-                kwargs.get("aspect_ratio", "16:9"),
-                kwargs.get("resolution", "1K"),
-            )
-        elif size_mode == "custom":
-            width = kwargs.get("width", 1920)
-            height = kwargs.get("height", 1080)
-            if width % 16 != 0 or height % 16 != 0:
-                raise ValueError("Custom width and height must both be multiples of 16")
-            arguments["image_size"] = {
-                "width": width,
-                "height": height,
-            }
-        elif kwargs.get("image_size") is not None:
-            arguments["image_size"] = kwargs["image_size"]
+        image_size = self._resolve_image_size(**kwargs)
+        if image_size is not None:
+            arguments["image_size"] = image_size
 
         if kwargs.get("quality") is not None:
             arguments["quality"] = kwargs["quality"]
