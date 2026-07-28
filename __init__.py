@@ -7,9 +7,14 @@ try:
     from .modules.bria_replace_background_node import SupersideBriaReplaceBackgroundNode
     from .modules.color_grading_node import SupersideColorGradingNode
     from .modules.color_match_node import SupersideColorMatchNode
+    from .modules.crop_by_region_node import SupersideCropByRegionNode
+    from .modules.crystal_upscaler_node import SupersideCrystalUpscalerNode
+    from .modules.stitch_region_node import SupersideStitchRegionNode
+    from .modules.skin_intensity_prompt_node import SupersideSkinIntensityPromptNode
     from .modules.florence_2_caption_node import SupersideFlorence2CaptionNode
     from .modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
     from .modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
+    from .modules.flux_pro_fill_node import SupersideFluxProFillNode
     from .modules.gemini_omni_flash_edit_node import SupersideGeminiOmniFlashEditNode
     from .modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
     from .modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
@@ -26,6 +31,7 @@ try:
     from .modules.prompt_box_node import SupersidePromptBoxNode
     from .modules.prompt_splitter_node import SupersidePromptSplitterNode
     from .modules.resize_long_side_node import SupersideResizeLongSideNode
+    from .modules.resize_to_match_node import SupersideResizeToMatchNode
     from .modules.sam_3_region_selector_node import SupersideSAM3RegionSelectorNode
     from .modules.seedance_lite_image_to_video_node import SupersideSeedanceLiteImageToVideoNode
     from .modules.seedance_pro_image_to_video_node import SupersideSeedanceProImageToVideoNode
@@ -38,6 +44,20 @@ try:
     from .modules.wan_25_image_to_image_node import SupersideWan25ImageToImageNode
     from .modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
     from .modules.white_balance_node import SupersideWhiteBalanceNode
+    from .modules.z_image_inpaint_lora_node import SupersideZImageInpaintLoraNode
+    from .modules.z_image_lora_trainer_node import SupersideZImageLoraTrainerNode
+    from .modules.load_image_node import SupersideLoadImageNode
+    from .modules.save_image_node import SupersideSaveImageNode, SupersidePreviewImageNode
+    from .modules.image_scale_to_total_pixels_node import SupersideImageScaleToTotalPixelsNode
+    from .modules.image_composite_masked_node import SupersideImageCompositeMaskedNode
+    from .modules.mask_to_image_node import SupersideMaskToImageNode, SupersideMaskPreviewNode
+    from .modules.grow_mask_with_blur_node import SupersideGrowMaskWithBlurNode
+    from .modules.cut_by_mask_node import SupersideCutByMaskNode
+    from .modules.combine_prompt_node import SupersideCombinePromptNode
+    from .modules.image_compare_node import SupersideImageCompareNode, SupersideImageComparerNode
+    from .modules.load_images_from_folder_node import SupersideLoadImagesFromFolderNode
+    from .modules.text_preview_node import SupersideTextPreviewNode
+    from .modules.portrait_sections_node import SupersidePortraitSectionsNode
 
 except ImportError:
     # Fallback for environments where this hyphenated folder name doesn't get
@@ -56,9 +76,14 @@ except ImportError:
     from modules.bria_replace_background_node import SupersideBriaReplaceBackgroundNode
     from modules.color_grading_node import SupersideColorGradingNode
     from modules.color_match_node import SupersideColorMatchNode
+    from modules.crop_by_region_node import SupersideCropByRegionNode
+    from modules.crystal_upscaler_node import SupersideCrystalUpscalerNode
+    from modules.stitch_region_node import SupersideStitchRegionNode
+    from modules.skin_intensity_prompt_node import SupersideSkinIntensityPromptNode
     from modules.florence_2_caption_node import SupersideFlorence2CaptionNode
     from modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
     from modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
+    from modules.flux_pro_fill_node import SupersideFluxProFillNode
     from modules.gemini_omni_flash_edit_node import SupersideGeminiOmniFlashEditNode
     from modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
     from modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
@@ -75,6 +100,7 @@ except ImportError:
     from modules.prompt_box_node import SupersidePromptBoxNode
     from modules.prompt_splitter_node import SupersidePromptSplitterNode
     from modules.resize_long_side_node import SupersideResizeLongSideNode
+    from modules.resize_to_match_node import SupersideResizeToMatchNode
     from modules.sam_3_region_selector_node import SupersideSAM3RegionSelectorNode
     from modules.seedance_lite_image_to_video_node import SupersideSeedanceLiteImageToVideoNode
     from modules.seedance_pro_image_to_video_node import SupersideSeedanceProImageToVideoNode
@@ -87,6 +113,20 @@ except ImportError:
     from modules.wan_25_image_to_image_node import SupersideWan25ImageToImageNode
     from modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
     from modules.white_balance_node import SupersideWhiteBalanceNode
+    from modules.z_image_inpaint_lora_node import SupersideZImageInpaintLoraNode
+    from modules.z_image_lora_trainer_node import SupersideZImageLoraTrainerNode
+    from modules.load_image_node import SupersideLoadImageNode
+    from modules.save_image_node import SupersideSaveImageNode, SupersidePreviewImageNode
+    from modules.image_scale_to_total_pixels_node import SupersideImageScaleToTotalPixelsNode
+    from modules.image_composite_masked_node import SupersideImageCompositeMaskedNode
+    from modules.mask_to_image_node import SupersideMaskToImageNode, SupersideMaskPreviewNode
+    from modules.grow_mask_with_blur_node import SupersideGrowMaskWithBlurNode
+    from modules.cut_by_mask_node import SupersideCutByMaskNode
+    from modules.combine_prompt_node import SupersideCombinePromptNode
+    from modules.image_compare_node import SupersideImageCompareNode, SupersideImageComparerNode
+    from modules.load_images_from_folder_node import SupersideLoadImagesFromFolderNode
+    from modules.text_preview_node import SupersideTextPreviewNode
+    from modules.portrait_sections_node import SupersidePortraitSectionsNode
 
 NODE_CLASS_MAPPINGS = {
     "SupersideAnyLLMTextNode": SupersideAnyLLMTextNode,
@@ -96,9 +136,14 @@ NODE_CLASS_MAPPINGS = {
     "SupersideBriaReplaceBackgroundNode": SupersideBriaReplaceBackgroundNode,
     "SupersideColorGradingNode": SupersideColorGradingNode,
     "SupersideColorMatchNode": SupersideColorMatchNode,
+    "SupersideCropByRegionNode": SupersideCropByRegionNode,
+    "SupersideCrystalUpscalerNode": SupersideCrystalUpscalerNode,
+    "SupersideStitchRegionNode": SupersideStitchRegionNode,
+    "SupersideSkinIntensityPromptNode": SupersideSkinIntensityPromptNode,
     "SupersideFlorence2CaptionNode": SupersideFlorence2CaptionNode,
     "SupersideFlorence2RegionSelectorNode": SupersideFlorence2RegionSelectorNode,
     "SupersideFluxKontextMaxMultiImageNode": SupersideFluxKontextMaxMultiImageNode,
+    "SupersideFluxProFillNode": SupersideFluxProFillNode,
     "SupersideGeminiOmniFlashEditNode": SupersideGeminiOmniFlashEditNode,
     "SupersideGPTImage2EditNode": SupersideGPTImage2EditNode,
     "SupersideGrokImagineImageQualityEditNode": SupersideGrokImagineImageQualityEditNode,
@@ -115,6 +160,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersidePromptBoxNode": SupersidePromptBoxNode,
     "SupersidePromptSplitterNode": SupersidePromptSplitterNode,
     "SupersideResizeLongSideNode": SupersideResizeLongSideNode,
+    "SupersideResizeToMatchNode": SupersideResizeToMatchNode,
     "SupersideSAM3RegionSelectorNode": SupersideSAM3RegionSelectorNode,
     "SupersideSeedanceLiteImageToVideoNode": SupersideSeedanceLiteImageToVideoNode,
     "SupersideSeedanceProImageToVideoNode": SupersideSeedanceProImageToVideoNode,
@@ -127,6 +173,23 @@ NODE_CLASS_MAPPINGS = {
     "SupersideWan25ImageToImageNode": SupersideWan25ImageToImageNode,
     "SupersideWan25ImageToVideoNode": SupersideWan25ImageToVideoNode,
     "SupersideWhiteBalanceNode": SupersideWhiteBalanceNode,
+    "SupersideZImageInpaintLoraNode": SupersideZImageInpaintLoraNode,
+    "SupersideZImageLoraTrainerNode": SupersideZImageLoraTrainerNode,
+    "SupersideLoadImageNode": SupersideLoadImageNode,
+    "SupersideSaveImageNode": SupersideSaveImageNode,
+    "SupersidePreviewImageNode": SupersidePreviewImageNode,
+    "SupersideImageScaleToTotalPixelsNode": SupersideImageScaleToTotalPixelsNode,
+    "SupersideImageCompositeMaskedNode": SupersideImageCompositeMaskedNode,
+    "SupersideMaskToImageNode": SupersideMaskToImageNode,
+    "SupersideMaskPreviewNode": SupersideMaskPreviewNode,
+    "SupersideGrowMaskWithBlurNode": SupersideGrowMaskWithBlurNode,
+    "SupersideCutByMaskNode": SupersideCutByMaskNode,
+    "SupersideCombinePromptNode": SupersideCombinePromptNode,
+    "SupersideImageCompareNode": SupersideImageCompareNode,
+    "SupersideImageComparerNode": SupersideImageComparerNode,
+    "SupersideLoadImagesFromFolderNode": SupersideLoadImagesFromFolderNode,
+    "SupersideTextPreviewNode": SupersideTextPreviewNode,
+    "SupersidePortraitSectionsNode": SupersidePortraitSectionsNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -137,9 +200,14 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideBriaReplaceBackgroundNode": "Superside Bria Replace Background V2",
     "SupersideColorGradingNode": "Superside Color Grading",
     "SupersideColorMatchNode": "Superside Color Match",
+    "SupersideCropByRegionNode": "Superside Crop By Region",
+    "SupersideCrystalUpscalerNode": "Superside Crystal Upscaler (portrait detail)",
+    "SupersideStitchRegionNode": "Superside Stitch Region",
+    "SupersideSkinIntensityPromptNode": "Superside Skin Intensity Dial",
     "SupersideFlorence2CaptionNode": "Superside Florence-2 Detailed Caption",
     "SupersideFlorence2RegionSelectorNode": "Superside Florence-2 Smart Region Selector",
     "SupersideFluxKontextMaxMultiImageNode": "Superside Flux Kontext Max Multi-Image Node",
+    "SupersideFluxProFillNode": "Superside FLUX.1 Pro Fill (dedicated inpaint)",
     "SupersideGeminiOmniFlashEditNode": "Superside Gemini Omni Flash Edit",
     "SupersideGPTImage2EditNode": "Superside GPT Image 2 Edit",
     "SupersideGrokImagineImageQualityEditNode": "Superside Grok Imagine Image Quality Edit",
@@ -156,6 +224,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersidePromptBoxNode": "Superside Prompt Box",
     "SupersidePromptSplitterNode": "Superside Prompt Splitter",
     "SupersideResizeLongSideNode": "Superside Resize (Long Side)",
+    "SupersideResizeToMatchNode": "Superside Resize To Match",
     "SupersideSAM3RegionSelectorNode": "Superside SAM 3 Smart Region Selector",
     "SupersideSeedanceLiteImageToVideoNode": "Superside Seedance Lite Image-to-Video",
     "SupersideSeedanceProImageToVideoNode": "Superside Seedance Pro Image-to-Video",
@@ -168,6 +237,23 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideWan25ImageToImageNode": "Superside Wan 2.5 Image-to-Image",
     "SupersideWan25ImageToVideoNode": "Superside Wan 2.5 Image-to-Video",
     "SupersideWhiteBalanceNode": "Superside White Balance",
+    "SupersideZImageInpaintLoraNode": "Superside Z-Image Turbo Inpaint+LoRA",
+    "SupersideZImageLoraTrainerNode": "Superside Z-Image LoRA Trainer",
+    "SupersideLoadImageNode": "Superside Load Image",
+    "SupersideSaveImageNode": "Superside Save Image",
+    "SupersidePreviewImageNode": "Superside Preview Image",
+    "SupersideImageScaleToTotalPixelsNode": "Superside Scale Image to Total Pixels",
+    "SupersideImageCompositeMaskedNode": "Superside Image Composite Masked",
+    "SupersideMaskToImageNode": "Superside Mask To Image",
+    "SupersideMaskPreviewNode": "Superside Mask Preview",
+    "SupersideGrowMaskWithBlurNode": "Superside Grow Mask With Blur",
+    "SupersideCutByMaskNode": "Superside Cut By Mask",
+    "SupersideCombinePromptNode": "Superside Combine Prompt",
+    "SupersideImageCompareNode": "Superside Image Compare",
+    "SupersideImageComparerNode": "Superside Image Comparer",
+    "SupersideLoadImagesFromFolderNode": "Superside Load Images From Folder",
+    "SupersideTextPreviewNode": "Superside Text Preview",
+    "SupersidePortraitSectionsNode": "Superside Portrait Sections",
 }
 
 WEB_DIRECTORY = "web"

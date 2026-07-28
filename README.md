@@ -93,6 +93,37 @@ One-click retouch/clean-up of an image (skin, blemishes, imperfections) using fa
 - **Inputs:** `image`, `api_key` · optional: `guidance_scale` (default 3.5), `num_inference_steps` (default 30), `lora_scale` (retouch strength, default 1.0), `seed` (-1 = random), `enable_safety_checker`, `sync_mode`
 - **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
 
+### Portrait sections (fal SAM 3)
+
+#### Portrait Sections (`SupersidePortraitSectionsNode`)
+In-house, fal-based replacement for a local face-parsing model. Toggle which facial/portrait sections (skin, nose, eyes, eyebrows, ears, mouth, lips, hair, hat, glasses, earrings, neck, necklace, clothing) to include in one merged MASK - e.g. as an EXCLUSION mask so a retouch pass skips eyes/lips/hair - using SAM 3 (`fal-ai/sam-3/image`), one call per *active* toggle only, merged with OR. Trade-off vs. a dedicated local face-parsing network: SAM 3 is promptable/open-vocabulary rather than a fixed pixel-labeled taxonomy (boundaries may be slightly less crisp) and costs one extra fal call per active toggle.
+- **Inputs:** `image`, `api_key` · optional: one BOOLEAN per section (defaults mirror the original re-skin workflow's exclusion set: nose/eyes/ears/mouth/lips/hair/hat on, the rest off), `padding_percent`
+- **Outputs:** `mask` (MASK), `info` (STRING, JSON of which sections were used)
+
+### Skin retouch / re-skin (Z-Image)
+
+Both nodes below target the **same base model** (Z-Image Turbo, Tongyi-MAI) on purpose - a LoRA trained with the trainer is guaranteed to apply correctly with the inpaint node, unlike mixing a LoRA/checkpoint across unrelated model families (e.g. a Krea 2 Trainer LoRA has nowhere to plug in, since Krea 2 has no img2img/inpainting endpoint on fal; a Flux-trainer LoRA on Flux-Krea-Lora crosses checkpoints).
+
+#### Z-Image Turbo Inpaint+LoRA (`SupersideZImageInpaintLoraNode`)
+Masked image-to-image (inpainting) with Z-Image Turbo (`fal-ai/z-image/turbo/inpaint/lora`), optionally with up to two stacked LoRAs (fal's `LoRAInput` list supports up to 3 - `lora_url` is the main trained face/skin LoRA slot, `skin_detail_lora_url` is a second, optional slot for a dedicated skin-texture-detail LoRA; both are applied together in the same single call, since there's no separate local-style "refiner pass" here). Drop-in replacement for a local `VAEEncode -> SetLatentNoiseMask -> LoRA loader -> KSampler -> VAEDecode` chain as a single fal.ai call. `strength` plays the same role as a KSampler's denoise (1.0 = fully regenerate the masked area, 0.0 = untouched). `match_input_resolution` (default ON) requests generation at the input's own resolution rounded to a multiple of 16 while preserving aspect ratio - but internally clamps the request to a ~2048px long-edge ceiling, since asking the endpoint for a custom size above that doesn't yield more detail, it silently falls back to a fixed square size instead (confirmed empirically). Pair with `Superside Crystal Upscaler` afterward for real added detail beyond that ceiling.
+- **Inputs:** `image`, `mask` (native MASK, white = area to regenerate), `prompt`, `api_key` · optional: `lora_url` (URL from the trainer below), `lora_scale`, `skin_detail_lora_url` (second, stacked skin-detail LoRA), `skin_detail_lora_scale`, `strength` (default 0.4), `num_inference_steps` (max 8, few-step model), `seed`, `num_images`, `image_size` (`auto` keeps the input's own size), `control_scale`/`control_start`/`control_end`, `enable_prompt_expansion`, `enable_safety_checker`, `output_format`, `acceleration`, `match_input_resolution` (default ON)
+- **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
+
+#### FLUX.1 Pro Fill (`SupersideFluxProFillNode`)
+Dedicated inpainting/outpainting model (fal endpoint `fal-ai/flux-pro/v1/fill`) - an alternative architecture to the Z-Image node above for the same re-skin use case. Unlike Z-Image Turbo Inpaint+LoRA (a "masked image-to-image" call - image + mask + strength, blended in afterward), FLUX.1 Fill is architected end-to-end for inpainting: the masked image and mask are fed to the model as explicit conditioning channels, not blended in afterward, which in practice tends to hold the unmasked region much closer to pixel-identical. Trade-off: no `strength` knob (always fully regenerates the masked region) and no LoRA support on this base endpoint (a LoRA variant exists as `fal-ai/flux-lora/inpainting`, but would need a LoRA retrained against FLUX's own base weights - LoRAs aren't portable across model families).
+- **Inputs:** `image`, `mask`, `prompt`, `api_key` · optional: `seed` (-1 = random), `num_images`, `output_format` (png/jpeg), `safety_tolerance` (1-6, default 2), `enhance_prompt`
+- **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
+
+#### Skin Intensity Prompt (`SupersideSkinIntensityPromptNode`)
+One dial (5 levels, "very subtle" to "extreme") for skin-texture intensity, so tuning strength doesn't mean hand-editing three separate fields every time. Outputs a matched prompt fragment + `lora_scale` + `strength` for the chosen level - wire `prompt_fragment` into `Superside Combine Prompt`'s `part2`, and `lora_scale`/`strength` into `Z-Image Turbo Inpaint+LoRA`. No API key, no model call.
+- **Inputs:** `level` (5 presets, default `3 - medium`)
+- **Outputs:** `prompt_fragment` (STRING), `lora_scale` (FLOAT), `strength` (FLOAT)
+
+#### Z-Image LoRA Trainer (`SupersideZImageLoraTrainerNode`)
+Trains a LoRA on Z-Image Turbo (`fal-ai/z-image-turbo-trainer-v2`) from a batch of images - e.g. close-up skin/imperfection references for a realistic-skin LoRA. Zips the batch locally and uploads it; every image shares the same `default_caption` (no per-image caption UI here - pass a pre-built zip with matching `.txt` files via `images_zip_url` for per-image captions).
+- **Inputs:** `images` (IMAGE batch, 10+ recommended), `default_caption` (include your trigger word), `api_key` · optional: `steps` (default 2000), `learning_rate` (default 0.0005), `images_zip_url` (overrides the IMAGE batch)
+- **Outputs:** `lora_file_url` (STRING) - feed straight into `Z-Image Turbo Inpaint+LoRA`'s `lora_url`
+
 ### Background tools
 
 There are three Bria background nodes - pick by what you actually want:
@@ -155,6 +186,11 @@ Supports audio-driven video generation and prompt expansion.
 
 ### Upscaling
 
+#### Crystal Upscaler (`SupersideCrystalUpscalerNode`)
+Portrait/facial-detail-specialized upscaler (fal endpoint `fal-ai/crystal-upscaler`, Clarity AI's upscaling tech). Meant to sit right after a generative inpaint pass (e.g. `Z-Image Turbo Inpaint+LoRA`) and before resizing back to the original resolution - since that generator has a real ceiling around ~2048px on its longest edge (see above), "more detail" beyond that ceiling has to come from a dedicated upscale pass on the result, not from asking the generator for a bigger image.
+- **Inputs:** `image`, `api_key` · optional: `scale_factor` (1-4, default 2), `creativity` (0-1, how much the upscaler can invent vs. stay literal, default 0), `output_format` (png/jpg)
+- **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
+
 #### Ideogram Upscale (`SupersideIdeogramUpscaleNode`)
 Prompt-guided upscaling with resemblance/detail sliders.
 - **Inputs:** `image`, `api_key` · optional: `prompt`, `resemblance`, `detail`, `expand_prompt`, `seed`
@@ -207,9 +243,16 @@ Single-region selection (face/upper body/lower body/full body/custom object) usi
 - **Outputs:** `mask` (MASK), `mask_image` (IMAGE), `info` (STRING, JSON), `center_x`, `center_y`, `crop_width`, `crop_height` (INT)
 
 #### SAM 3 Smart Region Selector (`SupersideSAM3RegionSelectorNode`)
-Broader vocabulary than Florence (garments, vehicle parts, accessories) plus multi-mask/scoring modes.
+Broader vocabulary than Florence (garments, vehicle parts, accessories) plus multi-mask/scoring modes. `box_prompts` support lets an upstream Florence-2 selector's box hand SAM 3 exactly where to look (the old GroundingDINO+SAM two-stage pattern) instead of relying on text alone to both find *and* segment a sub-part (e.g. a glasses frame without the lens).
 - **Inputs:** `image`, `region_type` (19 presets incl. `object`), `api_key` · optional: `custom_text`, `selection_mode` (largest/first/merge_all), `padding_percent`, `return_rect_mask`, `return_multiple_masks`, `max_masks`, `include_scores`, `include_boxes`
 - **Outputs:** `mask` (MASK), `mask_image` (IMAGE), `info` (STRING, JSON), `center_x`, `center_y`, `crop_width`, `crop_height` (INT)
+
+#### Crop By Region (`SupersideCropByRegionNode`) + Stitch Region (`SupersideStitchRegionNode`)
+A pair for processing a small region instead of a whole image: **Crop By Region** consumes a region selector's `center_x`/`center_y`/`crop_width`/`crop_height` outputs and crops image+mask around it (with a padding margin, rounded to a diffusion-friendly multiple), returning the exact `crop_x`/`crop_y`/`crop_w`/`crop_h` used. **Stitch Region** pastes the processed crop back into the full-resolution original at that exact position afterward - resizing the crop to `crop_w`x`crop_h` first (so it lands pixel-perfect even if the generator returned a slightly different size) and feathering the paste mask edge (Gaussian blur) so the seam blends instead of showing a hard rectangle.
+- **Crop By Region inputs:** `image`, `mask`, `center_x`, `center_y`, `crop_width`, `crop_height` · optional: `padding_percent` (default 25), `multiple_of` (default 64), `min_size` (default 512)
+- **Crop By Region outputs:** `image` (IMAGE), `mask` (MASK), `crop_x`, `crop_y`, `crop_w`, `crop_h` (INT)
+- **Stitch Region inputs:** `destination`, `source`, `crop_x`, `crop_y`, `crop_w`, `crop_h` · optional: `mask` (full-res, same one fed into Crop By Region - if omitted, the whole crop rectangle is pasted), `feather_pixels` (default 24)
+- **Stitch Region outputs:** `image` (IMAGE)
 
 ### Product detail sheets
 
@@ -236,6 +279,11 @@ Places a catalogue product photo into a consistent frame so a fixed set of detai
 - **Outputs:** `image` (IMAGE, normalized), `info` (STRING, JSON with the detected bbox, sizes, and settings used)
 
 ### Image utilities (no API key needed)
+
+#### Resize To Match (`SupersideResizeToMatchNode`)
+Resizes an image (and optionally a mask) to exactly match a reference image's width/height - a pure full-frame resize, no cropping or repositioning, so there's no coordinate drift. No-ops if the sizes already match. Built for closing a full-frame generate-at-working-resolution pipeline: generate/composite at a smaller working resolution (e.g. via `Superside Image Scale To Total Pixels`), then resize the result (and its mask) back up to the true original size for the final composite - regardless of what working resolution was used upstream.
+- **Inputs:** `image`, `reference_image` · optional: `mask`, `upscale_method` (lanczos/bicubic/bilinear/nearest, default lanczos)
+- **Outputs:** `image` (IMAGE), `mask` (MASK)
 
 #### Resize (Long Side) (`SupersideResizeLongSideNode`)
 Scales an image so its longest side hits a target size, preserving aspect ratio - handy for capping the biggest dimension of catalogue images before further processing.
@@ -272,6 +320,27 @@ Splits one prompt into up to 10 separate STRING outputs using a separator symbol
 - **Inputs:** `prompt`, `separator` (default `*`)
 - **Outputs:** `text_1` ... `text_10` (STRING)
 
+### Core / infrastructure equivalents (no fal.ai dependency)
+
+In-house reimplementations of core ComfyUI nodes and a handful of small third-party utility nodes, so a workflow built entirely from this package has no dependency on any other custom_nodes package (or on core ComfyUI's own node set) for these basic operations. Each is a faithful, same-contract replacement (same inputs/outputs/widgets) for the node it replaces:
+
+| Superside node | Replaces | Package replaced |
+|---|---|---|
+| `SupersideLoadImageNode` | `LoadImage` | core ComfyUI |
+| `SupersideSaveImageNode` | `SaveImage` | core ComfyUI |
+| `SupersidePreviewImageNode` | `PreviewImage` | core ComfyUI |
+| `SupersideImageScaleToTotalPixelsNode` | `ImageScaleToTotalPixels` | core ComfyUI |
+| `SupersideImageCompositeMaskedNode` | `ImageCompositeMasked` | core ComfyUI |
+| `SupersideMaskToImageNode` | `MaskToImage` | core ComfyUI |
+| `SupersideMaskPreviewNode` | `MaskPreview+` | comfyui_essentials |
+| `SupersideGrowMaskWithBlurNode` | `GrowMaskWithBlur` | comfyui-kjnodes |
+| `SupersideCutByMaskNode` | `Cut By Mask` | masquerade-nodes-comfyui |
+| `SupersideCombinePromptNode` | `CR Combine Prompt` | ComfyUI_Comfyroll_CustomNodes |
+| `SupersideImageCompareNode` | `CR Simple Image Compare` | ComfyUI_Comfyroll_CustomNodes |
+| `SupersideImageComparerNode` | `Image Comparer (rgthree)` | rgthree-comfy (simplified: static side-by-side, no interactive slider - that requires the original's frontend JS widget) |
+| `SupersideLoadImagesFromFolderNode` | `Load Images From Folder (KJ)` | comfyui-kjnodes |
+| `SupersideTextPreviewNode` | `Text Preview Node` | superside-utility-nodes (sibling package) |
+
 ## Package layout
 
 ```
@@ -279,7 +348,7 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <38 node files>
+│   └── <59 node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md
