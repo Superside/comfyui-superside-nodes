@@ -457,6 +457,35 @@ app.registerExtension({
 
             render();
 
+            // Loading the graph from a raw API-format JSON (drag/drop it in,
+            // or open it directly instead of a normal saved workflow) doesn't
+            // reliably go through onConfigure() the same way opening a saved
+            // *workflow* file does - ComfyUI has to reverse-engineer widgets
+            // from the "inputs" dict, and for a fully custom/hidden widget
+            // like this one that reconstruction can settle the widget's real
+            // value a tick AFTER this node finishes creating itself. When
+            // that happens the boxes drawn on screen look reset to defaults
+            // even though the file's "boxes" field has the real, correct
+            // coordinates the whole time. As a catch-all (in addition to the
+            // onConfigure hook below, which covers normal workflow loads),
+            // re-check the widget's settled value shortly after creation and
+            // restore from it if it differs from what we're currently
+            // showing.
+            setTimeout(() => {
+                if (!boxesWidget?.value) return;
+                try {
+                    const parsed = JSON.parse(boxesWidget.value);
+                    if (Array.isArray(parsed?.boxes) && parsed.boxes.length === MAX_BOXES) {
+                        const current = JSON.stringify({ boxes });
+                        if (boxesWidget.value !== current) {
+                            node._sdsSetBoxes?.(parsed.boxes);
+                        }
+                    }
+                } catch (e) {
+                    // malformed/partial value mid-load - ignore, keep current boxes
+                }
+            }, 60);
+
             requestAnimationFrame(() => {
                 const sz = node.computeSize();
                 if (sz[1] > node.size[1]) {
