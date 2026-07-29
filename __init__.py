@@ -45,6 +45,7 @@ try:
     from .modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
     from .modules.white_balance_node import SupersideWhiteBalanceNode
     from .modules.z_image_inpaint_lora_node import SupersideZImageInpaintLoraNode
+    from .modules.skin_detail_z_image_lora_node import SupersideSkinDetailZImageLoraNode
     from .modules.z_image_lora_trainer_node import SupersideZImageLoraTrainerNode
     from .modules.load_image_node import SupersideLoadImageNode
     from .modules.save_image_node import SupersideSaveImageNode, SupersidePreviewImageNode
@@ -114,6 +115,7 @@ except ImportError:
     from modules.wan_25_image_to_video_node import SupersideWan25ImageToVideoNode
     from modules.white_balance_node import SupersideWhiteBalanceNode
     from modules.z_image_inpaint_lora_node import SupersideZImageInpaintLoraNode
+    from modules.skin_detail_z_image_lora_node import SupersideSkinDetailZImageLoraNode
     from modules.z_image_lora_trainer_node import SupersideZImageLoraTrainerNode
     from modules.load_image_node import SupersideLoadImageNode
     from modules.save_image_node import SupersideSaveImageNode, SupersidePreviewImageNode
@@ -174,6 +176,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideWan25ImageToVideoNode": SupersideWan25ImageToVideoNode,
     "SupersideWhiteBalanceNode": SupersideWhiteBalanceNode,
     "SupersideZImageInpaintLoraNode": SupersideZImageInpaintLoraNode,
+    "SupersideSkinDetailZImageLoraNode": SupersideSkinDetailZImageLoraNode,
     "SupersideZImageLoraTrainerNode": SupersideZImageLoraTrainerNode,
     "SupersideLoadImageNode": SupersideLoadImageNode,
     "SupersideSaveImageNode": SupersideSaveImageNode,
@@ -238,6 +241,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideWan25ImageToVideoNode": "Superside Wan 2.5 Image-to-Video",
     "SupersideWhiteBalanceNode": "Superside White Balance",
     "SupersideZImageInpaintLoraNode": "Superside Z-Image Turbo Inpaint+LoRA",
+    "SupersideSkinDetailZImageLoraNode": "Superside Z-Image Skin-Detail Inpaint (fixed LoRA)",
     "SupersideZImageLoraTrainerNode": "Superside Z-Image LoRA Trainer",
     "SupersideLoadImageNode": "Superside Load Image",
     "SupersideSaveImageNode": "Superside Save Image",
