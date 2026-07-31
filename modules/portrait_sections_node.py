@@ -161,6 +161,20 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
                 "glasses_box_width": ("INT", {"default": -1, "min": -1, "max": 1_000_000}),
                 "glasses_box_height": ("INT", {"default": -1, "min": -1, "max": 1_000_000}),
                 "padding_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 50.0, "step": 0.5}),
+                "partial_feather_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.0, "min": 0.0, "max": 25.0, "step": 0.5,
+                        "tooltip": (
+                            "Feather (soft edge) applied ONLY to sections whose opacity is "
+                            "below 1.0 (e.g. clothing at 0.5). Softens the partial region's "
+                            "border so the downstream composite blends it gradually instead "
+                            "of showing a hard line / doubled edge. Full-opacity (1.0) "
+                            "sections are untouched here - they keep their crisp edge for the "
+                            "downstream grow/blur to handle. 0 = off."
+                        ),
+                    },
+                ),
             },
         }
 
@@ -174,12 +188,17 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
     )
 
     @staticmethod
-    def _scale_opacity(mask_uint8, opacity):
-        """Scale a 0/255 section mask by a 0-1 opacity. opacity>=1 -> unchanged
-        (identical to the old binary behavior)."""
+    def _scale_opacity(mask_uint8, opacity, feather_px=0.0):
+        """Scale a 0/255 section mask by a 0-1 opacity, optionally feathering the
+        edge (only meaningful for partial sections). opacity>=1 and feather<=0 ->
+        unchanged (identical to the old binary behavior)."""
         if opacity >= 1.0:
             return mask_uint8
-        return (mask_uint8.astype(np.float32) * max(0.0, float(opacity))).astype(np.uint8)
+        scaled = mask_uint8.astype(np.float32) * max(0.0, float(opacity))
+        if feather_px and feather_px > 0:
+            from scipy.ndimage import gaussian_filter
+            scaled = gaussian_filter(scaled, sigma=float(feather_px))
+        return np.clip(scaled, 0, 255).astype(np.uint8)
 
     def _download_mask_array(self, image_ref, width, height):
         url = image_ref.get("url") if isinstance(image_ref, dict) else image_ref
@@ -247,6 +266,7 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
         image,
         api_key,
         padding_percent=0.0,
+        partial_feather_percent=0.0,
         glasses_prompt_override="",
         glasses_box_center_x=-1,
         glasses_box_center_y=-1,
@@ -288,6 +308,9 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
                 # text fallback), so nothing ever got excluded.
                 glasses_box_prompts = [{"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2}]
 
+            # Feather (in px) for partial sections, from the smaller image edge.
+            feather_px = min(width, height) * float(partial_feather_percent) / 100.0
+
             merged = np.zeros((height, width), dtype=np.uint8)
             used = []
             section_masks = []  # [(name, mask_uint8), ...] - kept for color_preview
@@ -315,7 +338,7 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
                             section_mask = self._sam3_mask_for_prompt(
                                 client, image_url, prompt, width, height, box_prompts=[]
                             )
-                            merged = np.maximum(merged, self._scale_opacity(section_mask, opacity))
+                            merged = np.maximum(merged, self._scale_opacity(section_mask, opacity, feather_px))
                             used.append(name)
                             section_masks.append((name, section_mask))
                             continue
@@ -323,7 +346,7 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
                             e = e2
                     logger.warning(f"Skipping section '{name}' (SAM 3 call failed): {e}")
                     continue
-                merged = np.maximum(merged, self._scale_opacity(section_mask, opacity))
+                merged = np.maximum(merged, self._scale_opacity(section_mask, opacity, feather_px))
                 used.append(name)
                 section_masks.append((name, section_mask))
 
