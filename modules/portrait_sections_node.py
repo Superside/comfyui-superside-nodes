@@ -100,6 +100,26 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
             name: ("BOOLEAN", {"default": name in DEFAULT_ON})
             for name in SECTION_PROMPTS
         }
+        # Per-section opacity: how strongly each section is written into the
+        # exclusion mask. 1.0 (default) = fully white = the downstream composite
+        # pastes 100% of the ORIGINAL back there (no retouch) - identical to the
+        # old binary behavior. 0.5 = gray = composite blends 50% original / 50%
+        # generated, i.e. a partial retouch on that section (e.g. clothing).
+        # Only applies when the section's toggle is ON.
+        opacities = {
+            f"{name}_opacity": (
+                "FLOAT",
+                {
+                    "default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05,
+                    "tooltip": (
+                        f"Opacity of '{name}' in the exclusion mask (only when '{name}' is ON). "
+                        "1.0 = fully preserve the original here (no retouch). 0.5 = partial "
+                        "(50% original / 50% generated in the final composite). 0.0 = no exclusion."
+                    ),
+                },
+            )
+            for name in SECTION_PROMPTS
+        }
         return {
             "required": {
                 "image": ("IMAGE",),
@@ -107,6 +127,7 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
             },
             "optional": {
                 **toggles,
+                **opacities,
                 "glasses_prompt_override": (
                     "STRING",
                     {
@@ -151,6 +172,14 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
         "in one merged mask, using SAM 3 on fal.ai - in-house replacement "
         "for the local face-parsing model's per-region checklist."
     )
+
+    @staticmethod
+    def _scale_opacity(mask_uint8, opacity):
+        """Scale a 0/255 section mask by a 0-1 opacity. opacity>=1 -> unchanged
+        (identical to the old binary behavior)."""
+        if opacity >= 1.0:
+            return mask_uint8
+        return (mask_uint8.astype(np.float32) * max(0.0, float(opacity))).astype(np.uint8)
 
     def _download_mask_array(self, image_ref, width, height):
         url = image_ref.get("url") if isinstance(image_ref, dict) else image_ref
@@ -267,6 +296,7 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
                 if name == "glasses" and glasses_prompt_override and glasses_prompt_override.strip():
                     prompt = glasses_prompt_override.strip()
                 box_prompts = glasses_box_prompts if name == "glasses" else []
+                opacity = float(toggles.get(f"{name}_opacity", 1.0))
                 try:
                     section_mask = self._sam3_mask_for_prompt(
                         client, image_url, prompt, width, height, box_prompts=box_prompts
@@ -285,7 +315,7 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
                             section_mask = self._sam3_mask_for_prompt(
                                 client, image_url, prompt, width, height, box_prompts=[]
                             )
-                            merged = np.maximum(merged, section_mask)
+                            merged = np.maximum(merged, self._scale_opacity(section_mask, opacity))
                             used.append(name)
                             section_masks.append((name, section_mask))
                             continue
@@ -293,7 +323,7 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
                             e = e2
                     logger.warning(f"Skipping section '{name}' (SAM 3 call failed): {e}")
                     continue
-                merged = np.maximum(merged, section_mask)
+                merged = np.maximum(merged, self._scale_opacity(section_mask, opacity))
                 used.append(name)
                 section_masks.append((name, section_mask))
 
@@ -314,13 +344,17 @@ class SupersidePortraitSectionsNode(SupersideFalNode, ImageProcessingMixin, APIC
             preview_tensor = torch.from_numpy(np.clip(preview_np, 0, 255).astype(np.float32) / 255.0).unsqueeze(0)
 
             if padding_percent > 0 and merged.max() > 0:
-                # Simple uniform dilation-by-padding approximation: grow the
-                # mask's bounding region rather than every pixel, kept cheap
-                # and dependency-free (no scipy needed here).
-                from scipy.ndimage import binary_dilation
+                # Uniform grow of the mask. Grayscale dilation with the same
+                # cross structuring element / iteration count the old
+                # binary_dilation used, so the grown SHAPE is unchanged and it's
+                # byte-identical on a binary mask - but partial (per-section
+                # opacity) gray values are now preserved through the grow.
+                from scipy.ndimage import grey_dilation
                 pad_px = int(round(min(width, height) * padding_percent / 100.0))
                 if pad_px > 0:
-                    merged = binary_dilation(merged > 0, iterations=pad_px).astype(np.uint8) * 255
+                    cross = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=bool)
+                    for _ in range(pad_px):
+                        merged = grey_dilation(merged, footprint=cross, mode="constant", cval=0)
 
             mask_float = np.clip(merged, 0, 255).astype(np.float32) / 255.0
             mask_tensor = torch.from_numpy(mask_float).unsqueeze(0)

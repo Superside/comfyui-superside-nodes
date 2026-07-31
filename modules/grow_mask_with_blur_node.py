@@ -3,7 +3,7 @@ import io
 import numpy as np
 import torch
 from PIL import Image, ImageFilter
-from scipy.ndimage import binary_dilation, binary_erosion, binary_fill_holes
+from scipy.ndimage import grey_dilation, grey_erosion, binary_fill_holes
 
 MAX_RESOLUTION = 16384
 
@@ -62,12 +62,13 @@ class SupersideGrowMaskWithBlurNode:
             output = m.numpy().astype(np.float32)
             n_iter = int(abs(round(current_expand)))
             if n_iter > 0 and output.max() > 0:
-                binary = output > 0
-                if current_expand >= 0:
-                    binary = binary_dilation(binary, structure=kernel, iterations=n_iter)
-                else:
-                    binary = binary_erosion(binary, structure=kernel, iterations=n_iter)
-                output = binary.astype(np.float32)
+                # Grayscale morphology so partial (gray) mask values survive the
+                # grow/shrink - e.g. a section written at 0.5 opacity upstream.
+                # On a binary (0/1) mask this is identical to the old
+                # binary_dilation/erosion, so existing behavior is unchanged.
+                op = grey_dilation if current_expand >= 0 else grey_erosion
+                for _ in range(n_iter):
+                    output = op(output, footprint=kernel, mode="constant", cval=0.0)
 
             current_expand += abs(incremental_expandrate) if current_expand >= 0 else -abs(incremental_expandrate)
 
