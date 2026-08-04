@@ -382,13 +382,39 @@ app.registerExtension({
             }
 
             function onWheel(e) {
-                const { fx, fy } = eventFracs(e);
-                const hit = hitTest(fx, fy);
-                if (!hit) return;
+                // ComfyUI zooms the graph on wheel via a listener higher up the
+                // DOM, so a bubble-phase listener on our canvas loses that race
+                // (drag works, but scroll-to-resize never fired). Intercept at
+                // the window in CAPTURE phase, confirm the pointer is over this
+                // node's box canvas, then handle + swallow the event before the
+                // graph can zoom.
+                const rect = canvas.getBoundingClientRect();
+                if (!rect.width || !rect.height) return;
+                if (
+                    e.clientX < rect.left || e.clientX > rect.right ||
+                    e.clientY < rect.top || e.clientY > rect.bottom
+                ) {
+                    return; // not over our canvas - let the graph zoom normally
+                }
                 e.preventDefault();
                 e.stopPropagation();
+                if (e.stopImmediatePropagation) e.stopImmediatePropagation();
 
-                const b = boxes[hit.index];
+                const fx = (e.clientX - rect.left) / rect.width;
+                const fy = (e.clientY - rect.top) / rect.height;
+                const hit = hitTest(fx, fy);
+                // Resize the box under the cursor; if the cursor is over the
+                // image but not on a box, fall back to the top-most active box
+                // so a scroll always does something predictable.
+                let idx = hit ? hit.index : -1;
+                if (idx === -1) {
+                    for (let i = boxes.length - 1; i >= 0; i--) {
+                        if (boxes[i].active !== false) { idx = i; break; }
+                    }
+                }
+                if (idx === -1) return;
+
+                const b = boxes[idx];
                 const cx = (b.x1 + b.x2) / 2;
                 const cy = (b.y1 + b.y2) / 2;
                 const factor = e.deltaY > 0 ? 1 / 1.06 : 1.06;
@@ -396,7 +422,7 @@ app.registerExtension({
                 // rebuild it as a true pixel-square - so resizing never turns
                 // a square into a rectangle.
                 const newSide = boxSideH(b) * factor;
-                boxes[hit.index] = squareBox(cx, cy, newSide, aspect(), b.active);
+                boxes[idx] = squareBox(cx, cy, newSide, aspect(), b.active);
                 syncWidget();
                 render();
             }
@@ -404,7 +430,9 @@ app.registerExtension({
             canvas.addEventListener("mousedown", onMouseDown);
             window.addEventListener("mousemove", onMouseMove);
             window.addEventListener("mouseup", onMouseUp);
-            canvas.addEventListener("wheel", onWheel, { passive: false });
+            // Capture-phase on window so ComfyUI's graph-zoom handler can't
+            // swallow the wheel before we see it.
+            window.addEventListener("wheel", onWheel, { passive: false, capture: true });
 
             function loadSrc(url) {
                 if (!url || url === lastSrc) return;
@@ -452,6 +480,7 @@ app.registerExtension({
                 clearInterval(pollInterval);
                 window.removeEventListener("mousemove", onMouseMove);
                 window.removeEventListener("mouseup", onMouseUp);
+                window.removeEventListener("wheel", onWheel, { capture: true });
                 return onRemoved?.apply(this, arguments);
             };
 
