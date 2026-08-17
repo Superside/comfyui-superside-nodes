@@ -59,6 +59,8 @@ try:
     from .modules.load_images_from_folder_node import SupersideLoadImagesFromFolderNode
     from .modules.text_preview_node import SupersideTextPreviewNode
     from .modules.portrait_sections_node import SupersidePortraitSectionsNode
+    from .modules.scene_exclusion_mask_node import SupersideSceneExclusionMaskNode
+    from .modules.scene_realism_prompt_node import SupersideSceneRealismPromptNode
 
 except ImportError:
     # Fallback for environments where this hyphenated folder name doesn't get
@@ -129,6 +131,8 @@ except ImportError:
     from modules.load_images_from_folder_node import SupersideLoadImagesFromFolderNode
     from modules.text_preview_node import SupersideTextPreviewNode
     from modules.portrait_sections_node import SupersidePortraitSectionsNode
+    from modules.scene_exclusion_mask_node import SupersideSceneExclusionMaskNode
+    from modules.scene_realism_prompt_node import SupersideSceneRealismPromptNode
 
 NODE_CLASS_MAPPINGS = {
     "SupersideAnyLLMTextNode": SupersideAnyLLMTextNode,
@@ -193,6 +197,8 @@ NODE_CLASS_MAPPINGS = {
     "SupersideLoadImagesFromFolderNode": SupersideLoadImagesFromFolderNode,
     "SupersideTextPreviewNode": SupersideTextPreviewNode,
     "SupersidePortraitSectionsNode": SupersidePortraitSectionsNode,
+    "SupersideSceneExclusionMaskNode": SupersideSceneExclusionMaskNode,
+    "SupersideSceneRealismPromptNode": SupersideSceneRealismPromptNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -258,6 +264,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideLoadImagesFromFolderNode": "Superside Load Images From Folder",
     "SupersideTextPreviewNode": "Superside Text Preview",
     "SupersidePortraitSectionsNode": "Superside Portrait Sections",
+    "SupersideSceneExclusionMaskNode": "Superside Scene Exclusion Mask (generic)",
+    "SupersideSceneRealismPromptNode": "Superside Scene Realism Dial",
 }
 
 WEB_DIRECTORY = "web"

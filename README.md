@@ -124,6 +124,16 @@ One dial (5 levels, "very subtle" to "extreme") for skin-texture intensity, so t
 - **Inputs:** `level` (5 presets, default `3 - medium`)
 - **Outputs:** `prompt_fragment` (STRING), `lora_scale` (FLOAT), `strength` (FLOAT)
 
+#### Scene Realism Dial (`SupersideSceneRealismPromptNode`)
+Generic (not skin-specific) counterpart of the Skin Intensity Dial: one dial (5 levels) for how hard to push photorealism when enhancing an arbitrary scene region. Outputs a matched realism `prompt_fragment` + `lora_scale` + `strength`. Wire `prompt_fragment` into `Superside Combine Prompt`'s `part2` and `strength` into `Z-Image Turbo Inpaint+LoRA` (no LoRA needed for a plain realism pass; `lora_scale` only matters if a generic detail LoRA is wired). No API key, no model call.
+- **Inputs:** `level` (5 presets, default `3 - medium`)
+- **Outputs:** `prompt_fragment` (STRING), `lora_scale` (FLOAT), `strength` (FLOAT)
+
+#### Scene Exclusion Mask, generic (`SupersideSceneExclusionMaskNode`)
+Generic, non-face counterpart of `Superside Portrait Sections` for a scene enhancement pass: build one EXCLUSION mask of the parts to PROTECT (composite the original back over them). Instead of fixed facial toggles, give it an `exclude_people` toggle plus a plain list of things to protect (`exclude_prompts`, one target per line, e.g. `dimmer switch`, `wall outlet`, `brand logo`); each is segmented with SAM 3 (`fal-ai/sam-3/image`) and merged. Same re-skin principle: enhance the region you want, protect everything this mask covers. Per-target `opacity` (partial protection), `feather_percent` and `contract_percent` (soft edge that stays inside the target), `padding_percent` (grow the merged mask). Pair with `Grow Mask With Blur` + `Image Composite Masked` (source = original, destination = enhanced).
+- **Inputs:** `image`, `api_key` · optional: `exclude_people` (default ON), `exclude_prompts` (multiline list), `opacity` (default 1.0), `feather_percent`, `contract_percent`, `padding_percent`, `selection_mode` (merge_all / largest / first), `max_masks`
+- **Outputs:** `mask` (MASK), `info` (STRING, JSON), `color_preview` (IMAGE)
+
 #### Z-Image LoRA Trainer (`SupersideZImageLoraTrainerNode`)
 Trains a LoRA on Z-Image Turbo (`fal-ai/z-image-turbo-trainer-v2`) from a batch of images - e.g. close-up skin/imperfection references for a realistic-skin LoRA. Zips the batch locally and uploads it; every image shares the same `default_caption` (no per-image caption UI here - pass a pre-built zip with matching `.txt` files via `images_zip_url` for per-image captions).
 - **Inputs:** `images` (IMAGE batch, 10+ recommended), `default_caption` (include your trigger word), `api_key` · optional: `steps` (default 2000), `learning_rate` (default 0.0005), `images_zip_url` (overrides the IMAGE batch)
