@@ -55,49 +55,47 @@ class SupersideZImageInpaintLoraNode(
                 "api_key": API_KEY_INPUT_SPEC,
             },
             "optional": {
-                "lora_url": (
+                # Three generic, stackable LoRA slots (fal's LoRAInput list allows
+                # up to 3 in one call). Any LoRA in any slot - they're merged
+                # together in the single inpaint pass, each with its own scale.
+                "lora_1_url": (
                     "STRING",
                     {
                         "default": "",
-                        "placeholder": "URL of a trained Z-Image LoRA (e.g. from Superside Z-Image LoRA Trainer). Leave empty for the base model.",
-                        "tooltip": "diffusers_lora_file URL returned by fal-ai/z-image-turbo-trainer-v2 / fal-ai/z-image-trainer.",
+                        "placeholder": "LoRA #1 URL - HuggingFace /resolve/ raw .safetensors (NOT /blob/). Empty = base model.",
+                        "tooltip": "diffusers_lora_file URL (e.g. from Superside Z-Image LoRA Trainer, or a HuggingFace '/resolve/main/<file>.safetensors' raw URL - a '/blob/' URL is an HTML page and won't download). Slot 1 of 3.",
                     },
                 ),
-                "lora_scale": (
+                "lora_1_scale": (
                     "FLOAT",
-                    {
-                        "default": 1.0,
-                        "min": 0.0,
-                        "max": 4.0,
-                        "step": 0.05,
-                        "tooltip": "Strength of lora_url when merged into the base model. Ignored if lora_url is empty.",
-                    },
+                    {"default": 1.0, "min": 0.0, "max": 8.0, "step": 0.05,
+                     "tooltip": "Strength of lora_1_url. Ignored if lora_1_url is empty."},
                 ),
-                "skin_detail_lora_url": (
+                "lora_2_url": (
                     "STRING",
                     {
                         "default": "",
-                        "placeholder": "URL of a second, stacked skin-detail LoRA (optional).",
-                        "tooltip": (
-                            "fal's LoRAInput list supports up to 3 stacked LoRAs per call - "
-                            "this is a second slot alongside lora_url, meant for a dedicated "
-                            "skin-detail/texture LoRA (as opposed to the main trained face "
-                            "LoRA). Applied in the SAME single inpaint call - there's no "
-                            "separate 'refiner pass' here like a local multi-KSampler setup, "
-                            "so a creator's 'first pass'-range recommendation is the relevant "
-                            "one to start from, not their 'refiner pass' range."
-                        ),
+                        "placeholder": "LoRA #2 URL (optional) - use /resolve/ not /blob/.",
+                        "tooltip": "Slot 2 of 3. Any LoRA, stacked on top of slot 1 in the same call.",
                     },
                 ),
-                "skin_detail_lora_scale": (
+                "lora_2_scale": (
                     "FLOAT",
+                    {"default": 1.0, "min": 0.0, "max": 8.0, "step": 0.05,
+                     "tooltip": "Strength of lora_2_url. Ignored if lora_2_url is empty."},
+                ),
+                "lora_3_url": (
+                    "STRING",
                     {
-                        "default": 1.5,
-                        "min": 0.0,
-                        "max": 8.0,
-                        "step": 0.05,
-                        "tooltip": "Strength of skin_detail_lora_url. Ignored if skin_detail_lora_url is empty.",
+                        "default": "",
+                        "placeholder": "LoRA #3 URL (optional) - use /resolve/ not /blob/.",
+                        "tooltip": "Slot 3 of 3 (fal's max). Any LoRA, stacked with slots 1 and 2.",
                     },
+                ),
+                "lora_3_scale": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0.0, "max": 8.0, "step": 0.05,
+                     "tooltip": "Strength of lora_3_url. Ignored if lora_3_url is empty."},
                 ),
                 "strength": (
                     "FLOAT",
@@ -144,29 +142,6 @@ class SupersideZImageInpaintLoraNode(
                         ),
                     },
                 ),
-                "lora_3_url": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "placeholder": "URL of a THIRD stacked LoRA (optional).",
-                        "tooltip": (
-                            "Third LoRA slot - fal's LoRAInput list supports up to 3 "
-                            "stacked LoRAs in one call. Paste another diffusers_lora_file "
-                            "URL here to stack it on top of lora_url and skin_detail_lora_url, "
-                            "each with its own scale. Leave empty to use fewer LoRAs."
-                        ),
-                    },
-                ),
-                "lora_3_scale": (
-                    "FLOAT",
-                    {
-                        "default": 1.0,
-                        "min": 0.0,
-                        "max": 8.0,
-                        "step": 0.05,
-                        "tooltip": "Strength of lora_3_url. Ignored if lora_3_url is empty.",
-                    },
-                ),
             },
         }
 
@@ -200,10 +175,12 @@ class SupersideZImageInpaintLoraNode(
         mask,
         prompt,
         api_key,
-        lora_url="",
-        lora_scale=1.0,
-        skin_detail_lora_url="",
-        skin_detail_lora_scale=1.5,
+        lora_1_url="",
+        lora_1_scale=1.0,
+        lora_2_url="",
+        lora_2_scale=1.0,
+        lora_3_url="",
+        lora_3_scale=1.0,
         strength=0.4,
         num_inference_steps=8,
         seed=-1,
@@ -217,8 +194,7 @@ class SupersideZImageInpaintLoraNode(
         output_format="png",
         acceleration="regular",
         match_input_resolution=True,
-        lora_3_url="",
-        lora_3_scale=1.0,
+        **kwargs,
     ):
         try:
             client = self.get_client(api_key)
@@ -227,18 +203,22 @@ class SupersideZImageInpaintLoraNode(
             mask_image_tensor = self._mask_to_image_tensor(mask)
             mask_url = self.upload_image(client, mask_image_tensor)
 
-            # fal's LoRAInput list supports stacking up to 3 LoRAs in one
-            # call. Slot 1 is the main trained face/skin LoRA; slot 2 is an
-            # optional second, dedicated skin-detail LoRA - both applied
-            # together in this single inpaint pass (there's no separate
-            # local-style "refiner pass" here to split them across).
+            # Backward compatibility: older graphs / the skin subclass pass
+            # lora_url / skin_detail_lora_url. Map them onto slots 1 and 2 when
+            # the new slot is empty, so nothing breaks after the rename.
+            if not lora_1_url and kwargs.get("lora_url"):
+                lora_1_url = kwargs["lora_url"]
+                lora_1_scale = kwargs.get("lora_scale", lora_1_scale)
+            if not lora_2_url and kwargs.get("skin_detail_lora_url"):
+                lora_2_url = kwargs["skin_detail_lora_url"]
+                lora_2_scale = kwargs.get("skin_detail_lora_scale", lora_2_scale)
+
+            # fal's LoRAInput list supports stacking up to 3 LoRAs in one call;
+            # any LoRA in any slot, all merged together in this single pass.
             loras = []
-            if lora_url and lora_url.strip():
-                loras.append({"path": lora_url.strip(), "scale": float(lora_scale)})
-            if skin_detail_lora_url and skin_detail_lora_url.strip():
-                loras.append({"path": skin_detail_lora_url.strip(), "scale": float(skin_detail_lora_scale)})
-            if lora_3_url and lora_3_url.strip():
-                loras.append({"path": lora_3_url.strip(), "scale": float(lora_3_scale)})
+            for url, scale in ((lora_1_url, lora_1_scale), (lora_2_url, lora_2_scale), (lora_3_url, lora_3_scale)):
+                if url and url.strip():
+                    loras.append({"path": url.strip(), "scale": float(scale)})
 
             if match_input_resolution:
                 in_h, in_w = int(image.shape[1]), int(image.shape[2])

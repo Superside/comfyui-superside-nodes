@@ -41,9 +41,11 @@ class SupersideSkinDetailZImageLoraNode(SupersideZImageInpaintLoraNode):
     def INPUT_TYPES(cls):
         schema = copy.deepcopy(super().INPUT_TYPES())
         for section in ("required", "optional"):
-            schema.get(section, {}).pop("lora_url", None)
-            schema.get(section, {}).pop("skin_detail_lora_url", None)
-            schema.get(section, {}).pop("lora_3_url", None)
+            # hide every LoRA URL field so no weight URL is serialized into the
+            # exported workflow JSON (cog-comfyui's weights preflight rejects it)
+            for k in ("lora_1_url", "lora_2_url", "lora_3_url",
+                      "lora_url", "skin_detail_lora_url"):
+                schema.get(section, {}).pop(k, None)
         return schema
 
     DESCRIPTION = (
@@ -57,10 +59,10 @@ class SupersideSkinDetailZImageLoraNode(SupersideZImageInpaintLoraNode):
     def generate(self, **kwargs):
         # These are not declared in INPUT_TYPES, so ComfyUI never supplies them;
         # drop any stray value and force the hardcoded constants.
-        kwargs.pop("lora_url", None)
-        kwargs.pop("skin_detail_lora_url", None)
+        for k in ("lora_1_url", "lora_2_url", "lora_3_url", "lora_url", "skin_detail_lora_url"):
+            kwargs.pop(k, None)
         return super().generate(
-            lora_url=MAIN_LORA_URL,
-            skin_detail_lora_url=SECONDARY_LORA_URL,
+            lora_1_url=MAIN_LORA_URL,
+            lora_2_url=SECONDARY_LORA_URL,
             **kwargs,
         )
