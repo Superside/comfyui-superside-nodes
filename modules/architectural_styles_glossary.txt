@@ -1,0 +1,186 @@
+# ============================================================================
+# ARCHITECTURAL / INTERIOR STYLE GLOSSARY
+# Source of truth for Superside Architectural Style Dial
+# (modules/architectural_style_prompt_node.py)
+#
+# Purpose: a reusable vocabulary that DEFINES each interior style through its
+# concrete elements - materials, cabinetry, furniture, lighting, ceilings,
+# floors, fixtures and palette - broken down per room. Built from the reference
+# LoRA training sets for three styles: TRANSITIONAL, TRADITIONAL, MODERN.
+#
+# The node hardcodes condensed, prompt-ready versions of these lists. This file
+# is the human-readable master glossary: expand it here first, then mirror any
+# additions into architectural_style_prompt_node.py so the two stay in sync.
+#
+# Format:
+#   STYLE > CORE          - the always-applied signature of the style
+#   STYLE > <ROOM>        - elements specific to that room in that style
+#   All three styles share the same base look: warm evening real-estate
+#   photography, interior lights on, dark windows, magazine-quality staging.
+#   The style + room vocabulary is what differentiates them on top of that base.
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# STYLE 1 - TRANSITIONAL
+# A balanced blend of classic and contemporary. Cleaner lines than traditional,
+# warmer and more layered than modern. The "safe aspirational" real-estate look.
+# ----------------------------------------------------------------------------
+
+TRANSITIONAL > CORE
+  - Blend of classic and contemporary; softened, balanced, uncluttered-but-warm
+  - Walls: warm greige, soft white, taupe
+  - Ceilings: crown molding, coffered ceilings, some tray ceilings
+  - Millwork: wainscoting, board-and-batten, picture-frame paneling
+  - Floors: medium white-oak / hardwood, muted patterned area rugs layered
+  - Upholstery: oatmeal / linen, track-arm and rolled-arm sofas, upholstered beds
+  - Case goods: mix of painted and medium-dark wood
+  - Lighting: warm evening ambiance, glass globe pendants, lantern pendants,
+    drum-shade chandeliers, white-shade table lamps, brass / bronze accents
+  - Metals: brushed brass, oil-rubbed bronze, brushed nickel
+  - Palette: greige, cream, taupe, warm white + muted navy and sage accents
+
+TRANSITIONAL > LIVING_ROOM
+  - Coffered ceiling, built-in shelving flanking a fireplace
+  - Neutral sectional or sofa + accent chairs, wood coffee table
+  - Layered area rug, globe or candelabra chandelier, white-shade table lamps
+  - Framed landscape art, potted greenery
+
+TRANSITIONAL > BEDROOM
+  - Upholstered / tufted headboard, layered neutral bedding
+  - Matching nightstands and table lamps, bench at the foot of the bed
+  - Drum or lantern pendant, patterned area rug, soft lamplight
+
+TRANSITIONAL > KITCHEN
+  - Shaker cabinets in white, grey or navy
+  - Quartz or marble waterfall island, subway-tile backsplash
+  - Glass-and-metal pendant lights over the island
+  - Stainless or paneled appliances, upholstered counter stools
+
+TRANSITIONAL > DINING_ROOM
+  - Rectangular wood dining table, upholstered parsons or spindle chairs
+  - Linear or candelabra chandelier, sideboard / buffet
+  - Wainscoting, framed art
+
+TRANSITIONAL > BATHROOM
+  - Quartz-top vanity, framed mirror, porcelain tile
+  - Glass-enclosed shower, brushed-nickel or matte-black fixtures, sconces
+
+TRANSITIONAL > HALLWAY
+  - Console table with a lamp, patterned runner rug
+  - Framed gallery wall, lantern or flush-mount pendant, wainscoting
+
+
+# ----------------------------------------------------------------------------
+# STYLE 2 - TRADITIONAL
+# Classic, formal, heritage. Older-home character, rich woods, antiques,
+# masonry, oil paintings, warm incandescent light.
+# ----------------------------------------------------------------------------
+
+TRADITIONAL > CORE
+  - Classic, formal, symmetrical, heritage character
+  - Fireplaces: brick and masonry with wood mantels
+  - Wood: rich stained cherry, walnut, mahogany; carved detailing
+  - Upholstery: tufted leather Chesterfields, skirted sofas, wingback chairs
+  - Floors: herringbone / parquet and wide-plank; oriental / persian rugs
+  - Art: framed oil landscape paintings in gilt frames
+  - Millwork: wainscoting, beadboard, raised-panel doors, decorative crown molding
+  - Lighting: warm incandescent, candelabra chandeliers, schoolhouse and lantern
+    pendants, brass and ceramic table lamps, wall sconces
+  - Metals: antique brass, aged bronze, polished nickel
+  - Palette: warm brown, cream, deep green, navy, burgundy, gold
+
+TRADITIONAL > LIVING_ROOM
+  - Brick fireplace with a wood mantel, built-in bookshelves
+  - Tufted leather Chesterfield or skirted sofa, wingback / club chairs
+  - Carved wood coffee table, persian rug
+  - Brass table lamps, candelabra chandelier, oil landscape paintings
+
+TRADITIONAL > BEDROOM
+  - Carved four-poster or spindle wood bed, damask and toile textiles
+  - Oriental rug, brass and ceramic table lamps
+  - Upholstered wingback chair, wood dresser, warm lamplight
+
+TRADITIONAL > KITCHEN
+  - Raised-panel stained-cherry or painted wood cabinets
+  - Farmhouse sink, natural-stone or butcher-block counters
+  - Handmade subway tile, bronze or brass pendants, dark vent hood
+  - Warm wood floors
+
+TRADITIONAL > DINING_ROOM
+  - Formal wood dining table, upholstered or wood dining chairs
+  - Shaded candelabra chandelier, wall paneling and wainscoting
+  - Sideboard with lamps, wall sconces, framed landscape art, persian rug
+
+TRADITIONAL > BATHROOM
+  - Furniture-style wood vanity, marble counter
+  - Classic subway or mosaic tile, polished-nickel or brass fixtures
+  - Framed mirror, sconce lighting
+
+TRADITIONAL > HALLWAY
+  - Wood staircase with turned balusters, console table
+  - Framed oil paintings, wall sconces
+  - Schoolhouse or lantern pendant, runner rug, warm lamplight
+
+
+# ----------------------------------------------------------------------------
+# STYLE 3 - MODERN
+# Clean, minimalist, contemporary. Slab cabinetry, waterfall stone, black metal,
+# floor-to-ceiling glass, mid-century wood accents, uncluttered surfaces.
+# ----------------------------------------------------------------------------
+
+MODERN > CORE
+  - Clean, minimalist, contemporary; uncluttered surfaces, negative space
+  - Cabinetry: flat-panel / slab in light oak, walnut or charcoal
+  - Stone: waterfall quartz and honed surfaces
+  - Metals / hardware: matte black, blackened steel, minimal pulls
+  - Windows: large black-framed, floor-to-ceiling glass, lots of daylight
+  - Fireplace: linear gas fireplace with tile or stone surround
+  - Furniture: low-profile upholstery, mid-century walnut accents, sculptural
+  - Floors: wide-plank light oak, low-pile jute / wool rugs
+  - Lighting: recessed, linear pendants, sculptural paper-lantern and globe
+    fixtures, integrated LED, sleek track lighting
+  - Art: large abstract pieces, minimal framing
+  - Palette: white, warm oak, charcoal / black, greige + sage / olive accents
+
+MODERN > LIVING_ROOM
+  - Low-profile upholstered sofa in grey, blue or olive; walnut coffee table
+  - Large black-framed windows, linear gas fireplace with tile / stone surround
+  - Recessed and sculptural lighting, abstract art, floating media console
+  - Minimal styling
+
+MODERN > BEDROOM
+  - Low platform bed, light-oak or walnut nightstands
+  - Minimal neutral bedding with a sage or charcoal accent
+  - Sculptural paper-lantern pendant or flush mount, large windows
+  - Low-pile rug, a single framed artwork, clean walls
+
+MODERN > KITCHEN
+  - Flat-panel light-oak, charcoal or white slab cabinets
+  - Waterfall quartz island, integrated or stainless appliances
+  - Matte-black faucet and hardware, glass-globe or black pendants
+  - Minimal open shelving, wide-plank oak floor
+
+MODERN > DINING_ROOM
+  - Round or rectangular oak / dark-wood table
+  - Sculptural curved or cane dining chairs
+  - Cluster or linear pendant, abstract art, minimal sideboard, large windows
+
+MODERN > BATHROOM
+  - Floating wood vanity, quartz top, backlit LED mirror
+  - Large-format porcelain tile, matte-black fixtures, frameless glass shower
+
+MODERN > HALLWAY
+  - Minimal console table, black-framed gallery wall
+  - Wall sconces or recessed lighting, clean walls
+  - Oak floor, simple-railing staircase
+
+
+# ----------------------------------------------------------------------------
+# SHARED BASE (all styles) - the LoRA's common photographic look
+# ----------------------------------------------------------------------------
+BASE > PHOTOGRAPHY
+  - Warm evening interior real-estate photography
+  - Interior lights on, dark windows / blue-hour exterior
+  - Even, inviting staging; magazine / listing quality
+  - Natural true colors, sharp focus, high detail

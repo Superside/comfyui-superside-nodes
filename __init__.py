@@ -61,6 +61,7 @@ try:
     from .modules.portrait_sections_node import SupersidePortraitSectionsNode
     from .modules.scene_exclusion_mask_node import SupersideSceneExclusionMaskNode
     from .modules.scene_realism_prompt_node import SupersideSceneRealismPromptNode
+    from .modules.architectural_style_prompt_node import SupersideArchitecturalStylePromptNode
 
 except ImportError:
     # Fallback for environments where this hyphenated folder name doesn't get
@@ -133,6 +134,7 @@ except ImportError:
     from modules.portrait_sections_node import SupersidePortraitSectionsNode
     from modules.scene_exclusion_mask_node import SupersideSceneExclusionMaskNode
     from modules.scene_realism_prompt_node import SupersideSceneRealismPromptNode
+    from modules.architectural_style_prompt_node import SupersideArchitecturalStylePromptNode
 
 NODE_CLASS_MAPPINGS = {
     "SupersideAnyLLMTextNode": SupersideAnyLLMTextNode,
@@ -199,6 +201,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersidePortraitSectionsNode": SupersidePortraitSectionsNode,
     "SupersideSceneExclusionMaskNode": SupersideSceneExclusionMaskNode,
     "SupersideSceneRealismPromptNode": SupersideSceneRealismPromptNode,
+    "SupersideArchitecturalStylePromptNode": SupersideArchitecturalStylePromptNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -266,6 +269,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersidePortraitSectionsNode": "Superside Portrait Sections",
     "SupersideSceneExclusionMaskNode": "Superside Scene Exclusion Mask (generic)",
     "SupersideSceneRealismPromptNode": "Superside Scene Realism Dial",
+    "SupersideArchitecturalStylePromptNode": "Superside Architectural Style Dial",
 }
 
 WEB_DIRECTORY = "web"
