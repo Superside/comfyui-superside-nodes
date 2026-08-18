@@ -144,6 +144,29 @@ class SupersideZImageInpaintLoraNode(
                         ),
                     },
                 ),
+                "lora_3_url": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "placeholder": "URL of a THIRD stacked LoRA (optional).",
+                        "tooltip": (
+                            "Third LoRA slot - fal's LoRAInput list supports up to 3 "
+                            "stacked LoRAs in one call. Paste another diffusers_lora_file "
+                            "URL here to stack it on top of lora_url and skin_detail_lora_url, "
+                            "each with its own scale. Leave empty to use fewer LoRAs."
+                        ),
+                    },
+                ),
+                "lora_3_scale": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 8.0,
+                        "step": 0.05,
+                        "tooltip": "Strength of lora_3_url. Ignored if lora_3_url is empty.",
+                    },
+                ),
             },
         }
 
@@ -194,6 +217,8 @@ class SupersideZImageInpaintLoraNode(
         output_format="png",
         acceleration="regular",
         match_input_resolution=True,
+        lora_3_url="",
+        lora_3_scale=1.0,
     ):
         try:
             client = self.get_client(api_key)
@@ -212,6 +237,8 @@ class SupersideZImageInpaintLoraNode(
                 loras.append({"path": lora_url.strip(), "scale": float(lora_scale)})
             if skin_detail_lora_url and skin_detail_lora_url.strip():
                 loras.append({"path": skin_detail_lora_url.strip(), "scale": float(skin_detail_lora_scale)})
+            if lora_3_url and lora_3_url.strip():
+                loras.append({"path": lora_3_url.strip(), "scale": float(lora_3_scale)})
 
             if match_input_resolution:
                 in_h, in_w = int(image.shape[1]), int(image.shape[2])

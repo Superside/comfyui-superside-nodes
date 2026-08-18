@@ -43,6 +43,7 @@ class SupersideSkinDetailZImageLoraNode(SupersideZImageInpaintLoraNode):
         for section in ("required", "optional"):
             schema.get(section, {}).pop("lora_url", None)
             schema.get(section, {}).pop("skin_detail_lora_url", None)
+            schema.get(section, {}).pop("lora_3_url", None)
         return schema
 
     DESCRIPTION = (
