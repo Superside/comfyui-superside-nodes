@@ -8,16 +8,67 @@
 # floors, fixtures and palette - broken down per room. Built from the reference
 # LoRA training sets for three styles: TRANSITIONAL, TRADITIONAL, MODERN.
 #
-# The node hardcodes condensed, prompt-ready versions of these lists. This file
-# is the human-readable master glossary: expand it here first, then mirror any
-# additions into architectural_style_prompt_node.py so the two stay in sync.
+# TWO LAYERS (read this before editing):
+#
+#   LAYER A - GENERAL PROMPT DESCRIPTORS  (what the NODE actually emits)
+#     Material / fabric / surface / metal / palette / light CATEGORIES that
+#     describe the *character* of a style, plus a minimal room scene-anchor.
+#     This is what goes into an inference prompt. It is deliberately general:
+#     the LoRA already learned the look, so we steer it by material/texture/
+#     palette, not by an object inventory.
+#
+#   LAYER B - DETAILED REFERENCE  (the STYLE > <ROOM> lists further down)
+#     Exhaustive per-room element catalogs. Use these for TRAINING CAPTIONS or
+#     human lookup - do NOT dump a whole list into one inference prompt: forcing
+#     8-10 specific objects into a single frame causes clutter, duplicated /
+#     melted objects and malformations. They stay here as reference only.
+#
+# All three styles share the same base look: warm evening real-estate
+# photography, interior lights on, dark windows, magazine-quality staging.
+#
+# To edit: change Layer A here AND mirror it into _STYLE_CORE / _ROOM_ANCHOR in
+# architectural_style_prompt_node.py so the two stay in sync. Layer B is
+# reference and does not need mirroring.
+# ============================================================================
+
+
+# ############################################################################
+# LAYER A - GENERAL PROMPT DESCRIPTORS  (mirrors the node; safe for prompts)
+# ############################################################################
+
+STYLE CHARACTER (material / fabric / surface / metal / palette / light)
+  TRANSITIONAL : a warm balanced blend of classic and contemporary; oak and
+                 soft painted wood; linen and wool textiles; quartz and marble
+                 surfaces; subway tile; brushed brass and bronze; warm evening
+                 light; greige/cream/taupe palette with muted navy and sage;
+                 coffered ceilings and light millwork.
+  TRADITIONAL  : a warm formal heritage feel; rich stained cherry/walnut/
+                 mahogany wood; brick and stone; tufted leather, velvet, damask
+                 and toile textiles; persian rugs; marble and butcher-block;
+                 aged brass and bronze; warm incandescent light; warm brown/
+                 cream/deep-green/navy/burgundy palette; wainscoting/beadboard.
+  MODERN       : clean, minimal, contemporary; light oak/walnut/charcoal wood;
+                 quartz, honed stone and concrete; matte black metal; flat-weave
+                 wool, boucle and jute textiles; large black-framed glass;
+                 balanced natural light; white/warm-oak/charcoal palette with
+                 sage accents; uncluttered surfaces.
+
+ROOM SCENE ANCHORS (minimal, style-agnostic - only what defines the room)
+  living_room : a living room with a sofa, coffee table and fireplace
+  bedroom     : a bedroom with a bed, nightstands and a dresser
+  kitchen     : a kitchen with an island, cabinetry and pendant lighting
+  dining_room : a dining room with a dining table and chairs
+  bathroom    : a bathroom with a vanity, mirror and shower
+  hallway     : a hallway with a console table and a runner rug
+
+
+# ############################################################################
+# LAYER B - DETAILED REFERENCE  (training captions / lookup - NOT for one prompt)
+# ############################################################################
 #
 # Format:
 #   STYLE > CORE          - the always-applied signature of the style
 #   STYLE > <ROOM>        - elements specific to that room in that style
-#   All three styles share the same base look: warm evening real-estate
-#   photography, interior lights on, dark windows, magazine-quality staging.
-#   The style + room vocabulary is what differentiates them on top of that base.
 # ============================================================================
 
 
