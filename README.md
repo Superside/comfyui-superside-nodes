@@ -26,6 +26,22 @@ Custom ComfyUI nodes wrapping [fal.ai](https://fal.ai) models for image editing,
    ```
 3. Restart ComfyUI. All nodes appear under the **Superside** category in the node menu.
 
+## Updating
+
+Pull the latest nodes from your repo folder, then **restart ComfyUI** (new nodes and widget UIs only load on restart):
+
+```
+git pull origin main
+```
+
+If `git pull` reports local changes, stash them first: `git stash` → `git pull origin main` → `git stash pop`.
+
+### Recent updates
+
+- **Manual Detail Sheet — selectable crop aspect ratio.** New `aspect_ratio` dropdown (`1:1`, `4:5`, `2:3`, `9:16`, `16:9`); the boxes are drawn, dragged and scroll-resized at the chosen ratio. Defaults to `1:1`, so existing saved workflows are unchanged.
+- **New: Architectural Style Dial.** Prompt driver for interior / real-estate generation with three styles (`transitional`, `traditional`, `modern`) × room × realism level, described through general material/palette categories. Ships with `modules/architectural_styles_glossary.txt`.
+- **Z-Image Turbo Inpaint+LoRA — stack up to 3 LoRAs.** Three generic `lora_N_url` / `lora_N_scale` slots so you can paste any HuggingFace `/resolve/…safetensors` LoRA (the Skin-Detail variant keeps its URLs hidden for cog-comfyui/Replicate).
+
 ## API key
 
 **There is no config file and the key is never stored in this repository.** Every node has an `api_key` text input - the normal flow is to paste your key directly into that widget on each node. Ask your project lead for the key.
