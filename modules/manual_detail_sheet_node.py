@@ -42,6 +42,17 @@ class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
 
     CATEGORY = "Superside"
 
+    # Selectable crop aspect ratios (width : height). The widget draws and
+    # resizes every box at the chosen ratio, and the Python side shapes the
+    # final crop to it exactly. "1:1" reproduces the original square behavior.
+    ASPECT_RATIOS = {
+        "1:1": 1.0,
+        "4:5": 4.0 / 5.0,
+        "2:3": 2.0 / 3.0,
+        "9:16": 9.0 / 16.0,
+        "16:9": 16.0 / 9.0,
+    }
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -67,6 +78,17 @@ class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
                         "tooltip": "Internal: box positions set by dragging on the image preview above. Not meant to be edited by hand.",
                     },
                 ),
+                # Appended last on purpose: ComfyUI maps saved widgets_values
+                # positionally, so adding this at the end keeps existing saved
+                # workflows' crop_scale/boxes intact (aspect_ratio just defaults
+                # to 1:1 on them, reproducing the original square behavior).
+                "aspect_ratio": (
+                    list(cls.ASPECT_RATIOS.keys()),
+                    {
+                        "default": "1:1",
+                        "tooltip": "Aspect ratio (width:height) of every crop box. The boxes on the preview are drawn and resized at this ratio; change it and all boxes reshape to match.",
+                    },
+                ),
             },
         }
 
@@ -81,7 +103,7 @@ class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
         "AI detection, no API key needed."
     )
 
-    def _parse_boxes(self, boxes_json, image_width, image_height):
+    def _parse_boxes(self, boxes_json, image_width, image_height, aspect_ratio="1:1"):
         if not boxes_json or not boxes_json.strip():
             raise ValueError(
                 "No boxes have been drawn yet. Drag on the image preview in "
@@ -113,16 +135,30 @@ class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
             if y2 < y1:
                 y1, y2 = y2, y1
 
-            # Force a true 1:1 square crop in pixels, centered on the box.
-            # The widget already draws squares, but fraction rounding can
-            # leave the pixel rect a pixel or two off - square it here so the
-            # output crop is guaranteed 1:1. The side is capped to the image
-            # and the square is shifted (not clipped) to stay fully inside.
+            # Shape the crop to the selected aspect ratio (width:height) in
+            # pixels, centered on the box. The widget already draws boxes at
+            # this ratio, but fraction rounding can leave the pixel rect a
+            # touch off - enforce it here so the output crop is exact. The box
+            # height anchors the size (same source-of-truth as the widget);
+            # width is derived from the ratio, capped to the image, and the
+            # rect is shifted (not clipped) to stay fully inside.
+            ratio = self.ASPECT_RATIOS.get(aspect_ratio, 1.0)  # width / height
             cx = (x1 + x2) / 2.0
             cy = (y1 + y2) / 2.0
-            side = min(max(x2 - x1, y2 - y1), float(image_width), float(image_height))
-            half = side / 2.0
-            sx1, sy1, sx2, sy2 = cx - half, cy - half, cx + half, cy + half
+            ch = y2 - y1
+            cw = ratio * ch
+            if cw > image_width:
+                cw = float(image_width)
+                ch = cw / ratio
+            if ch > image_height:
+                ch = float(image_height)
+                cw = ratio * ch
+                if cw > image_width:
+                    cw = float(image_width)
+                    ch = cw / ratio
+            half_w = cw / 2.0
+            half_h = ch / 2.0
+            sx1, sy1, sx2, sy2 = cx - half_w, cy - half_h, cx + half_w, cy + half_h
             if sx1 < 0:
                 sx2 -= sx1
                 sx1 = 0.0
@@ -146,7 +182,7 @@ class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
 
         return active_boxes
 
-    def generate(self, image, crop_scale=2.0, boxes=""):
+    def generate(self, image, aspect_ratio="1:1", crop_scale=2.0, boxes=""):
         try:
             source_img = self._tensor_to_pil(image)
 
@@ -156,7 +192,7 @@ class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
             # preview thumbnail of its own until it runs.
             source_preview = _save_temp_preview(source_img, "superside_mds_src")
 
-            active_boxes = self._parse_boxes(boxes, source_img.width, source_img.height)
+            active_boxes = self._parse_boxes(boxes, source_img.width, source_img.height, aspect_ratio)
 
             kept_details = []
             detail_crops = []
@@ -189,6 +225,7 @@ class SupersideManualDetailSheetNode(DetailSheetCompositionMixin):
                 "details": kept_details,
                 "discarded_count": len(active_boxes) - len(detail_crops),
                 "crop_scale": crop_scale,
+                "aspect_ratio": aspect_ratio,
             })
 
             result = (composed_tensor, info)

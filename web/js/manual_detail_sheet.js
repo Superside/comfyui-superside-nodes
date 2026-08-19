@@ -11,20 +11,42 @@ const NODE_NAME = "SupersideManualDetailSheetNode";
 const MAX_BOXES = 6;
 const DEFAULT_ACTIVE_COUNT = 4;
 const COLORS = ["#ff5555", "#55aaff", "#55ff88", "#ffaa33", "#cc88ff", "#ffee55"];
-const DEFAULT_SIDE_FRAC = 0.2; // default square side, as a fraction of image height
+const DEFAULT_SIDE_FRAC = 0.2; // default box height, as a fraction of image height
 
-// Force a box to be a true square in IMAGE PIXELS, keeping its center. The
-// box is stored as x/y fractions of width/height independently, so a square
-// in pixels needs a smaller width-fraction than height-fraction on a wide
-// photo. `aspect` is imageWidth/imageHeight. `sideH` is the desired square
-// side as a fraction of image height. The result is clamped to stay inside
-// the image while remaining square (the side shrinks if it can't fit).
-function squareBox(cx, cy, sideH, aspect, active) {
+// Crop aspect ratios (width : height) selectable via the node's "aspect_ratio"
+// widget. Must match ASPECT_RATIOS in manual_detail_sheet_node.py.
+const ASPECT_RATIOS = {
+    "1:1": 1.0,
+    "4:5": 4.0 / 5.0,
+    "2:3": 2.0 / 3.0,
+    "9:16": 9.0 / 16.0,
+    "16:9": 16.0 / 9.0,
+};
+function parseCropAspect(str) {
+    return ASPECT_RATIOS[str] || 1.0; // width / height
+}
+
+// Shape a box to a given crop aspect ratio in IMAGE PIXELS, keeping its
+// center. The box is stored as x/y fractions of width/height independently,
+// so a pixel ratio maps to different width/height fractions depending on the
+// photo's own shape. `imgAspect` is imageWidth/imageHeight; `cropAspect` is
+// the desired crop width/height; `sideH` is the box height as a fraction of
+// image height (the source of truth). The result is clamped to stay inside the
+// image while keeping the crop ratio exact (it shrinks if it can't fit).
+function ratioBox(cx, cy, sideH, imgAspect, cropAspect, active) {
     let h = Math.min(Math.max(sideH, 0.02), 1);
-    let w = h / aspect;
+    let w = (cropAspect * h) / imgAspect;
     if (w > 1) {
         w = 1;
-        h = w * aspect;
+        h = (w * imgAspect) / cropAspect;
+    }
+    if (h > 1) {
+        h = 1;
+        w = (cropAspect * h) / imgAspect;
+        if (w > 1) {
+            w = 1;
+            h = (w * imgAspect) / cropAspect;
+        }
     }
     const halfW = w / 2;
     const halfH = h / 2;
@@ -39,19 +61,20 @@ function squareBox(cx, cy, sideH, aspect, active) {
     };
 }
 
-// A box's square "side" expressed as a fraction of image height (its height
-// fraction is the source of truth; width is always derived from it).
+// A box's "size" expressed as a fraction of image height (its height fraction
+// is the source of truth; width is always derived from it + the crop ratio).
 function boxSideH(b) {
     return b.y2 - b.y1;
 }
 
-function defaultBoxes(aspect) {
-    const a = aspect || 1.5;
+function defaultBoxes(imgAspect, cropAspect) {
+    const a = imgAspect || 1.5;
+    const ca = cropAspect || 1.0;
     const boxes = [];
     for (let i = 0; i < MAX_BOXES; i++) {
         const cx = 0.2 + (i % 3) * 0.3;
         const cy = 0.28 + Math.floor(i / 3) * 0.44;
-        boxes.push(squareBox(cx, cy, DEFAULT_SIDE_FRAC, a, i < DEFAULT_ACTIVE_COUNT));
+        boxes.push(ratioBox(cx, cy, DEFAULT_SIDE_FRAC, a, ca, i < DEFAULT_ACTIVE_COUNT));
     }
     return boxes;
 }
@@ -72,7 +95,14 @@ app.registerExtension({
                 boxesWidget.computeSize = () => [0, -4];
             }
 
-            let boxes = defaultBoxes();
+            // The visible crop-ratio dropdown. Its value drives the shape of
+            // every box; changing it reshapes them all in place.
+            const aspectWidget = node.widgets?.find((w) => w.name === "aspect_ratio");
+            function cropAspect() {
+                return parseCropAspect(aspectWidget?.value || "1:1");
+            }
+
+            let boxes = defaultBoxes(1.5, cropAspect());
             if (boxesWidget?.value) {
                 try {
                     const parsed = JSON.parse(boxesWidget.value);
@@ -174,12 +204,13 @@ app.registerExtension({
                 return imgLoaded && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1.5;
             }
 
-            // Re-derive every box as a true pixel-square for the current
-            // aspect ratio, preserving each box's center and side. Called
-            // whenever the aspect changes (image load) or boxes are restored.
+            // Re-derive every box at the current crop ratio and image aspect,
+            // preserving each box's center and height. Called whenever the
+            // image aspect changes (image load), the crop ratio changes, or
+            // boxes are restored.
             function resquareAll() {
                 boxes = boxes.map((b) =>
-                    squareBox((b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2, boxSideH(b), aspect(), b.active !== false)
+                    ratioBox((b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2, boxSideH(b), aspect(), cropAspect(), b.active !== false)
                 );
             }
 
@@ -265,19 +296,29 @@ app.registerExtension({
 
             // Rebuild the row of live crop thumbnails - one per active box,
             // showing the exact region of the source image that box covers.
+            const THUMB_MAX = 72;
             const previewThumbs = [];
             function updatePreviews() {
                 // Ensure one thumb canvas per box exists (reused across renders).
                 while (previewThumbs.length < MAX_BOXES) {
                     const i = previewThumbs.length;
                     const c = document.createElement("canvas");
-                    c.width = 72;
-                    c.height = 72;
                     c.style.cssText =
-                        "width:72px;height:72px;border-radius:4px;border:2px solid " +
+                        "border-radius:4px;border:2px solid " +
                         COLORS[i] + ";background:#000;display:none;";
                     previewStrip.appendChild(c);
                     previewThumbs.push(c);
+                }
+
+                // Thumb dimensions follow the crop ratio so the preview isn't
+                // distorted: the longer side is THUMB_MAX, the other derived.
+                const ca = cropAspect();
+                let tw = THUMB_MAX;
+                let th = THUMB_MAX;
+                if (ca >= 1) {
+                    th = Math.max(1, Math.round(THUMB_MAX / ca));
+                } else {
+                    tw = Math.max(1, Math.round(THUMB_MAX * ca));
                 }
 
                 previewThumbs.forEach((c, i) => {
@@ -287,15 +328,19 @@ app.registerExtension({
                         return;
                     }
                     c.style.display = "block";
+                    c.width = tw;
+                    c.height = th;
+                    c.style.width = tw + "px";
+                    c.style.height = th + "px";
                     const ctx = c.getContext("2d");
-                    ctx.clearRect(0, 0, c.width, c.height);
+                    ctx.clearRect(0, 0, tw, th);
                     const sx = b.x1 * img.naturalWidth;
                     const sy = b.y1 * img.naturalHeight;
                     const sw = (b.x2 - b.x1) * img.naturalWidth;
                     const sh = (b.y2 - b.y1) * img.naturalHeight;
                     if (sw <= 0 || sh <= 0) return;
-                    // The box is square in image pixels, so it fills the square thumb.
-                    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+                    // Box and thumb share the same crop ratio, so no distortion.
+                    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, tw, th);
                     // Number badge in the corner.
                     ctx.fillStyle = "rgba(0,0,0,0.55)";
                     ctx.fillRect(0, 0, 16, 16);
@@ -312,6 +357,19 @@ app.registerExtension({
                 syncWidget();
                 render();
             };
+
+            // Changing the crop-ratio dropdown reshapes every box in place
+            // (keeping centers + heights) and redraws.
+            if (aspectWidget) {
+                const prevAspectCb = aspectWidget.callback;
+                aspectWidget.callback = function () {
+                    const r = prevAspectCb?.apply(this, arguments);
+                    resquareAll();
+                    syncWidget();
+                    render();
+                    return r;
+                };
+            }
 
             // All hit-testing is done directly against the canvas's LIVE
             // on-screen rect and the boxes' 0-1 fractional coords, so it never
@@ -418,11 +476,11 @@ app.registerExtension({
                 const cx = (b.x1 + b.x2) / 2;
                 const cy = (b.y1 + b.y2) / 2;
                 const factor = e.deltaY > 0 ? 1 / 1.06 : 1.06;
-                // Scale the square's side (tracked as a height fraction) and
-                // rebuild it as a true pixel-square - so resizing never turns
-                // a square into a rectangle.
+                // Scale the box height (the source of truth) and rebuild it at
+                // the current crop ratio - so resizing keeps the chosen ratio
+                // instead of drifting toward a square.
                 const newSide = boxSideH(b) * factor;
-                boxes[idx] = squareBox(cx, cy, newSide, aspect(), b.active);
+                boxes[idx] = ratioBox(cx, cy, newSide, aspect(), cropAspect(), b.active);
                 syncWidget();
                 render();
             }
