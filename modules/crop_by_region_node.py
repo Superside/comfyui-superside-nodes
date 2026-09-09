@@ -1,6 +1,10 @@
+import logging
+
 import numpy as np
 import torch
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 
 class SupersideCropByRegionNode:
@@ -16,6 +20,26 @@ class SupersideCropByRegionNode:
     image is never resized, only a small region around it is cropped out,
     processed, and pasted back.
     """
+
+    # Locking the crop to a shape matters because min_size is applied per axis:
+    # a region smaller than min_size on both axes comes out square, which
+    # reframes a wide subject (a pair of glasses) as a face close-up. Ratios
+    # are width:height.
+    ASPECT_AS_DETECTED = "region (as detected)"
+    ASPECT_OPTIONS = [
+        ASPECT_AS_DETECTED,
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3",
+        "5:4",
+        "4:5",
+        "2:1",
+        "1:2",
+    ]
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -56,7 +80,14 @@ class SupersideCropByRegionNode:
                         "min": 1,
                         "max": 8192,
                         "step": 1,
-                        "tooltip": "Minimum crop width/height, in case the selected region is tiny.",
+                        "tooltip": "Minimum crop width/height, in case the selected region is tiny. Applied per axis, so it squares up a small region unless crop_aspect locks a shape.",
+                    },
+                ),
+                "crop_aspect": (
+                    list(cls.ASPECT_OPTIONS),
+                    {
+                        "default": cls.ASPECT_AS_DETECTED,
+                        "tooltip": "Lock the crop to a shape instead of taking whatever the detected region measures. The crop only ever GROWS to reach the ratio, so nothing the region covered is lost - it just gains context on the short axis. Useful because a small region hits min_size on both axes and comes out square: glasses want 16:9, a face wants 1:1.",
                     },
                 ),
             },
@@ -74,6 +105,20 @@ class SupersideCropByRegionNode:
         "spot without ever resizing the original image."
     )
 
+    @classmethod
+    def _aspect_ratio(cls, crop_aspect):
+        """Target width/height, or None to keep the region's own shape."""
+        if not crop_aspect or crop_aspect == cls.ASPECT_AS_DETECTED:
+            return None
+        try:
+            width, height = crop_aspect.split(":")
+            ratio = float(width) / float(height)
+        except (ValueError, ZeroDivisionError):
+            logger.warning("Crop by Region: unrecognised crop_aspect %r - keeping the "
+                           "region's own shape.", crop_aspect)
+            return None
+        return ratio if ratio > 0 else None
+
     def crop(
         self,
         image,
@@ -85,6 +130,7 @@ class SupersideCropByRegionNode:
         padding_percent=25.0,
         multiple_of=64,
         min_size=512,
+        crop_aspect=None,
     ):
         if not isinstance(image, torch.Tensor) or image.ndim != 4:
             raise ValueError("image must be a ComfyUI IMAGE tensor [B,H,W,C].")
@@ -103,11 +149,48 @@ class SupersideCropByRegionNode:
         want_w = max(want_w, float(min_size))
         want_h = max(want_h, float(min_size))
 
+        # Lock the shape AFTER the min_size floor, otherwise the floor undoes
+        # it: a region under min_size on both axes is pushed to a square first,
+        # and only then can the ratio grow the long axis back out.
+        target_ratio = self._aspect_ratio(crop_aspect)
+        if target_ratio is not None:
+            # Only ever grow, so the whole detected region stays inside.
+            if want_w / want_h < target_ratio:
+                want_w = want_h * target_ratio
+            else:
+                want_h = want_w / target_ratio
+
         m = max(1, int(multiple_of))
-        final_w = int(np.ceil(want_w / m) * m)
-        final_h = int(np.ceil(want_h / m) * m)
+        if target_ratio is None:
+            final_w = int(np.ceil(want_w / m) * m)
+            final_h = int(np.ceil(want_h / m) * m)
+        else:
+            # Rounding BOTH axes up to a multiple of 64 throws the ratio off by
+            # up to 7% (a 384px axis moves by 32px), so multiple_of is applied
+            # to the long axis only and the short one follows the ratio exactly.
+            # These are crop rectangle sizes, not model input sizes - the crop
+            # gets resized before any model sees it.
+            if want_w >= want_h:
+                final_w = int(np.ceil(want_w / m) * m)
+                final_h = max(1, int(round(final_w / target_ratio)))
+            else:
+                final_h = int(np.ceil(want_h / m) * m)
+                final_w = max(1, int(round(final_h * target_ratio)))
         final_w = max(1, min(final_w, full_w))
         final_h = max(1, min(final_h, full_h))
+
+        if target_ratio is not None:
+            achieved = final_w / float(final_h)
+            logger.info(
+                "Crop by Region: region %dx%d -> crop %dx%d (aspect %s requested, %.3f achieved)",
+                base_w, base_h, final_w, final_h, crop_aspect, achieved,
+            )
+            if abs(achieved - target_ratio) / target_ratio > 0.1:
+                logger.warning(
+                    "Crop by Region: could not reach %s - the crop was clamped to the "
+                    "image (%dx%d), so the shape came out %.3f instead of %.3f.",
+                    crop_aspect, full_w, full_h, achieved, target_ratio,
+                )
 
         x1 = int(round(int(center_x) - final_w / 2.0))
         y1 = int(round(int(center_y) - final_h / 2.0))
