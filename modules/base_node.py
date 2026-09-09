@@ -11,6 +11,8 @@ import requests
 import torch
 from PIL import Image
 
+from . import fal_cost_ledger
+
 logger = logging.getLogger(__name__)
 
 
@@ -307,6 +309,32 @@ class APIClientMixin:
         logger.info(f"Using synchronous API call to {endpoint}")
         return client.run(endpoint, arguments=arguments)
 
+    def _record_cost(self, endpoint, arguments, result, elapsed_s):
+        """
+        Log the call in the cost ledger so the Fal Cost Report node can add it
+        up. Every node in this package goes through call_api, so this is the
+        single place cost tracking has to live.
+
+        Cost accounting must never break a generation that already succeeded,
+        so any failure here is swallowed with a warning.
+        """
+        try:
+            entry = fal_cost_ledger.record(
+                node=type(self).__name__,
+                endpoint=endpoint,
+                arguments=arguments,
+                result=result,
+                elapsed_s=elapsed_s,
+            )
+            if entry["usd"] is not None:
+                logger.info(
+                    "fal cost: %s ~$%.4f (%s)", endpoint, entry["usd"], entry["detail"]
+                )
+            else:
+                logger.info("fal cost: %s not priced (%s)", endpoint, entry["reason"])
+        except Exception as e:
+            logger.warning("Cost ledger failed for %s: %s", endpoint, e)
+
     def call_api(self, client, endpoint, arguments):
         """
         Call the fal.ai API with the given endpoint and arguments.
@@ -329,8 +357,10 @@ class APIClientMixin:
         last_error = None
         for attempt in range(len(self.RETRY_BACKOFF) + 1):
             try:
+                started = time.time()
                 result = self._call_once(client, endpoint, arguments)
                 logger.debug(f"API response: {json.dumps(result, indent=2)}")
+                self._record_cost(endpoint, arguments, result, time.time() - started)
                 return result
             except Exception as e:
                 last_error = e

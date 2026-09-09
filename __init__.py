@@ -11,6 +11,7 @@ try:
     from .modules.crystal_upscaler_node import SupersideCrystalUpscalerNode
     from .modules.stitch_region_node import SupersideStitchRegionNode
     from .modules.skin_intensity_prompt_node import SupersideSkinIntensityPromptNode
+    from .modules.fal_cost_report_node import SupersideFalCostReportNode
     from .modules.florence_2_caption_node import SupersideFlorence2CaptionNode
     from .modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
     from .modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
@@ -85,6 +86,7 @@ except ImportError:
     from modules.crystal_upscaler_node import SupersideCrystalUpscalerNode
     from modules.stitch_region_node import SupersideStitchRegionNode
     from modules.skin_intensity_prompt_node import SupersideSkinIntensityPromptNode
+    from modules.fal_cost_report_node import SupersideFalCostReportNode
     from modules.florence_2_caption_node import SupersideFlorence2CaptionNode
     from modules.florence_2_region_selector_node import SupersideFlorence2RegionSelectorNode
     from modules.flux_kontext_max_multi_node import SupersideFluxKontextMaxMultiImageNode
@@ -150,6 +152,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideCrystalUpscalerNode": SupersideCrystalUpscalerNode,
     "SupersideStitchRegionNode": SupersideStitchRegionNode,
     "SupersideSkinIntensityPromptNode": SupersideSkinIntensityPromptNode,
+    "SupersideFalCostReportNode": SupersideFalCostReportNode,
     "SupersideFlorence2CaptionNode": SupersideFlorence2CaptionNode,
     "SupersideFlorence2RegionSelectorNode": SupersideFlorence2RegionSelectorNode,
     "SupersideFluxKontextMaxMultiImageNode": SupersideFluxKontextMaxMultiImageNode,
@@ -219,6 +222,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideCrystalUpscalerNode": "Superside Crystal Upscaler (portrait detail)",
     "SupersideStitchRegionNode": "Superside Stitch Region",
     "SupersideSkinIntensityPromptNode": "Superside Skin Intensity Dial",
+    "SupersideFalCostReportNode": "Superside Fal Cost Report",
     "SupersideFlorence2CaptionNode": "Superside Florence-2 Detailed Caption",
     "SupersideFlorence2RegionSelectorNode": "Superside Florence-2 Smart Region Selector",
     "SupersideFluxKontextMaxMultiImageNode": "Superside Flux Kontext Max Multi-Image Node",
@@ -275,6 +279,27 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideSceneRealismPromptNode": "Superside Scene Realism Dial",
     "SupersideArchitecturalStylePromptNode": "Superside Architectural Style Dial",
 }
+
+# Show each node's fal.ai price on the node itself. ComfyUI renders DESCRIPTION
+# as the node's tooltip, so appending the price there puts it one hover away
+# without touching every node file. Nodes that make no fal call are untouched.
+try:
+    try:
+        from .modules import fal_pricing
+    except ImportError:
+        from modules import fal_pricing
+
+    for _class_name, _cls in NODE_CLASS_MAPPINGS.items():
+        _note = fal_pricing.price_note_for_node(_class_name)
+        if not _note:
+            continue
+        _existing = (getattr(_cls, "DESCRIPTION", "") or "").rstrip()
+        if "fal price" in _existing:
+            continue
+        _cls.DESCRIPTION = (_existing + "\n\n" + _note).strip()
+except Exception as _exc:  # never block node loading over a tooltip
+    print(f"[comfyui-superside-nodes] could not attach price notes: {_exc}")
+
 
 WEB_DIRECTORY = "web"
 

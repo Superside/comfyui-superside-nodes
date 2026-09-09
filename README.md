@@ -38,6 +38,7 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+- **New: cost tracking for every fal call.** Each fal-backed node now carries its fal.ai price in its tooltip, every call is priced into an in-memory ledger, and the new **Superside Fal Cost Report** node prints the breakdown and the run total. See [Cost tracking](#cost-tracking).
 - **New: Grok Imagine Image v2 Edit.** Wraps `xai/grok-imagine-image/v2.0/edit` — same controls as the quality endpoint (up to 3 reference images, `aspect_ratio`, `resolution` 1k/2k, `output_format`, `num_images`, `sync_mode`) plus a `quality` level (`low`/`medium`).
 - **Manual Detail Sheet — selectable crop aspect ratio.** New `aspect_ratio` dropdown (`1:1`, `4:5`, `2:3`, `9:16`, `16:9`); the boxes are drawn, dragged and scroll-resized at the chosen ratio. Defaults to `1:1`, so existing saved workflows are unchanged.
 - **New: Architectural Style Dial.** Prompt driver for interior / real-estate generation with three styles (`transitional`, `traditional`, `modern`) × room × realism level, described through general material/palette categories. Ships with `modules/architectural_styles_glossary.txt`.
@@ -50,6 +51,43 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 **Opt-in `FAL_KEY` fallback:** if the `api_key` input is left blank, the node falls back to the `FAL_KEY` environment variable. This is for automated/headless deployments (e.g. a Replicate pipeline) that would otherwise have to embed the key as literal text inside the workflow JSON - where it can leak into request logs - and can instead pass it via a redacted env var. When a key is pasted into the input, the fallback never engages, so the manual flow is unchanged. If both are blank, the node fails immediately with a clear error.
 
 > Only rely on the env fallback in **isolated, single-tenant** deployments where whoever can submit a workflow is trusted with the key. On a **shared multi-tenant** ComfyUI backend, keep passing an explicit per-workflow `api_key` - that input requirement is the access-control gate.
+
+## Cost tracking
+
+Every fal-backed node reports what it costs, so a workflow can be priced before and after it runs.
+
+**On the node.** Each node's tooltip ends with its fal.ai price, e.g. `fal price (2026-09-09): $0.04 (low) / $0.06 (medium) per 1K image, $0.06 / $0.08 per 2K image, plus $0.01 per input image`. Nodes that make no fal call have no such line. The prices live in `modules/fal_pricing.py` and are attached at registration time, so there is nothing to maintain per node file.
+
+**After the run.** Drop a **Superside Fal Cost Report** node in the graph and it adds up everything the Superside nodes called. All nodes share one API helper, so the report covers every node in this package without any wiring per node.
+- `scope`: `this run` (calls since this report node last reported) or `session (since ComfyUI started)`.
+- Wire the last image of your pipeline into `after_image` (or any string into `after_text`). ComfyUI does not guarantee that an input-less node runs last, and these inputs force the ordering.
+- Outputs `report` (STRING - the breakdown, also shown on the node), `total_usd` (FLOAT) and `calls` (INT).
+- `clear_after_report` empties the ledger once it has reported, so the next run starts from zero.
+
+The ledger is in memory only: it starts empty on every ComfyUI restart and nothing is written to disk.
+
+**What is and isn't priced.** 19 of the endpoints this package calls publish a per-call price, and those are computed exactly from the request and the response (output count, resolution, quality, megapixels, video seconds, training steps). The rest are billed by GPU-second (Florence-2, Juggernaut, Bria background replace) or by token consumption (GPT Image 2, Gemini Omni Flash), and fal publishes no per-call figure for them. Those calls are **counted and listed separately rather than guessed at**, so the reported total is always a real lower bound and never silently wrong:
+
+```
+TOTAL        4 priced call(s)                       $0.4870 USD
+
+1 call(s) could not be priced:
+  - openai/gpt-image-2/edit
+      fal bills this endpoint by token consumption, which depends on prompt
+      and image size - no per-call price is published
+
+The total above EXCLUDES those calls.
+```
+
+**Keeping prices current.** fal changes prices. From the repo root:
+
+```
+python -m modules.fal_pricing --check
+```
+
+That re-reads fal's live catalogue and prints any endpoint whose published amounts no longer match the snapshot in `PUBLISHED_AMOUNTS` (a reworded blurb stays quiet; a real price move shows up). Update the note, the snapshot and `SOURCE_DATE` for anything it lists. It also flags endpoint ids that are no longer in fal's catalogue - currently `fal-ai/topaz/upscale/image`, `fal-ai/crystal-upscaler` and `fal-ai/bytedance/seedance/v1/lite/reference-to-video`, which are worth re-checking against the model pages.
+
+fal is the only source of truth for what you are actually billed - treat these numbers as close estimates, not an invoice.
 
 ## Node reference
 
@@ -348,6 +386,13 @@ Neutralizes a color cast by calibrating RGB from a neutral/white reference - bui
 - **Outputs:** `image` (IMAGE)
 - **Tip:** `manual_sample` is the most reliable - point `sample_x`/`sample_y` at an area you know should be white/neutral (e.g. a catalogue's white background).
 
+### Cost reporting
+
+#### Fal Cost Report (`SupersideFalCostReportNode`)
+Adds up every fal.ai call made by Superside nodes and prints the cost breakdown on the node. See [Cost tracking](#cost-tracking) for how pricing works and which endpoints cannot be priced.
+- **Inputs:** `scope` (`this run` / `session (since ComfyUI started)`) · optional: `after_image` (IMAGE, wire your last image here so this node runs last), `after_text` (STRING), `clear_after_report`
+- **Outputs:** `report` (STRING), `total_usd` (FLOAT), `calls` (INT)
+
 ### Utility (no API key needed)
 
 These nodes make no fal.ai calls, so they don't have an `api_key` input.
@@ -390,7 +435,9 @@ comfyui-superside-nodes/
 ├── __init__.py                # Node registration (NODE_CLASS_MAPPINGS, etc.)
 ├── modules/
 │   ├── base_node.py            # SupersideFalNode, ImageProcessingMixin, APIClientMixin, API_KEY_INPUT_SPEC
-│   └── <59 node files>
+│   ├── fal_pricing.py          # fal price table per endpoint + cost estimators (`--check` for price drift)
+│   ├── fal_cost_ledger.py      # In-memory record of every fal call and its cost
+│   └── <node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── requirements.txt
 └── README.md
