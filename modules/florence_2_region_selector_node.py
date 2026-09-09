@@ -4,7 +4,7 @@ from typing import Any, Iterable
 
 import numpy as np
 import torch
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 from .base_node import (
     APIClientMixin,
@@ -30,6 +30,7 @@ class SupersideFlorence2RegionSelectorNode(
     """
 
     REGION_TYPE_OPTIONS = [
+        "glasses",
         "face",
         "upper_body",
         "lower_body",
@@ -38,8 +39,15 @@ class SupersideFlorence2RegionSelectorNode(
     ]
 
     SELECTION_MODE_OPTIONS = ["largest", "merge_all"]
+    DETECTION_MODE_OPTIONS = ["auto", "segmentation", "grounding_bbox"]
 
+    # Florence-2 answers a short noun far better than a description. The bare
+    # word "eyeglasses" is what the retired comfyui-inpaint-cropstitch-nb2
+    # selector sent for its glasses region, and it returns the whole frame -
+    # rim, bridge and temples - where a long descriptive phrase tends to come
+    # back with the front rim alone.
     REGION_QUERY_MAP = {
+        "glasses": "eyeglasses",
         "face": "face",
         "upper_body": "upper body",
         "lower_body": "lower body",
@@ -77,6 +85,33 @@ class SupersideFlorence2RegionSelectorNode(
                     },
                 ),
                 "return_rect_mask": ("BOOLEAN", {"default": False}),
+                "mask_blur_percent": (
+                    "FLOAT",
+                    {
+                        "default": 0.0,
+                        "min": 0.0,
+                        "max": 100.0,
+                        "step": 0.5,
+                        "tooltip": "Soft blur applied to the returned mask, as a percentage of the region's longest edge. Florence's segmentation of a thin object like a spectacle frame is jagged; a few percent gives a downstream stitch or inpaint something it can blend against.",
+                    },
+                ),
+                "detection_mode": (
+                    cls.DETECTION_MODE_OPTIONS,
+                    {
+                        "default": "auto",
+                        "tooltip": "'auto' tries segmentation and falls back to a grounding box, except for a face, where the box is tried first because segmentation tends to grab the whole head. 'segmentation' and 'grounding_bbox' force one or the other.",
+                    },
+                ),
+                "upload_max_dimension": (
+                    "INT",
+                    {
+                        "default": 2048,
+                        "min": 512,
+                        "max": 4096,
+                        "step": 64,
+                        "tooltip": "Downscale the image's longest edge before uploading it for detection. Lower it if fal closes the connection on big images.",
+                    },
+                ),
             },
         }
 
@@ -94,7 +129,10 @@ class SupersideFlorence2RegionSelectorNode(
     DISPLAY_NAME = "Florence-2 Smart Region Selector"
     DESCRIPTION = (
         "Select one semantic region at a time using Florence-2. "
-        "Supports face, upper body, lower body, full body, or a custom object prompt."
+        "Supports glasses, face, upper body, lower body, full body, or a custom "
+        "object prompt. Prefer the built-in region types over an object prompt: "
+        "Florence answers a short noun ('eyeglasses') far more reliably than a "
+        "long description, which tends to come back with only part of the object."
     )
 
     def _normalize_image_array(self, image: Any) -> np.ndarray:
@@ -118,6 +156,37 @@ class SupersideFlorence2RegionSelectorNode(
             image_np = np.stack([image_np] * 3, axis=-1)
 
         return image_np
+
+    @staticmethod
+    def _blur_mask(mask_uint8: np.ndarray, blur_percent: float) -> np.ndarray:
+        """
+        Soften a mask by a percentage of the region's longest edge.
+
+        Scaling the blur to the region rather than the image keeps the same
+        percentage meaningful whether the mask covers a whole torso or a thin
+        spectacle frame. The peak is renormalised so a thin shape does not
+        fade away entirely.
+        """
+        mask_float = mask_uint8.astype(np.float32) / 255.0
+        ys, xs = np.nonzero(mask_float > 0.001)
+        if len(xs) == 0:
+            return mask_uint8
+
+        box_w = max(1, int(xs.max() - xs.min() + 1))
+        box_h = max(1, int(ys.max() - ys.min() + 1))
+        blur_px = max(box_w, box_h) * (blur_percent / 100.0)
+        radius = max(0.5, blur_px / 3.0)
+
+        blurred = np.asarray(
+            Image.fromarray(mask_uint8, mode="L").filter(ImageFilter.GaussianBlur(radius=radius)),
+            dtype=np.float32,
+        ) / 255.0
+
+        peak_before, peak_after = float(mask_float.max()), float(blurred.max())
+        if peak_before > 0.0 and peak_after > 0.0:
+            blurred = blurred * (peak_before / peak_after)
+
+        return np.clip(blurred * 255.0, 0, 255).astype(np.uint8)
 
     def _build_query(self, region_type: str, custom_text: str) -> str:
         custom_text = (custom_text or "").strip()
@@ -331,6 +400,9 @@ class SupersideFlorence2RegionSelectorNode(
         selection_mode="largest",
         padding_percent=8.0,
         return_rect_mask=False,
+        mask_blur_percent=0.0,
+        detection_mode="auto",
+        upload_max_dimension=2048,
     ):
         try:
             client = self.get_client(api_key)
@@ -349,28 +421,39 @@ class SupersideFlorence2RegionSelectorNode(
                 )
 
             query = self._build_query(region_type, custom_text)
-            image_url = self.upload_image(client, image, max_dimension=2048)
+            image_url = self.upload_image(
+                client, image, max_dimension=max(512, int(upload_max_dimension))
+            )
             image_np = self._normalize_image_array(image[0:1])
             height, width = image_np.shape[:2]
 
+            # Segmentation of a face usually returns the whole head, so a
+            # grounding box is the better first try there. Every other region
+            # is better served by the polygon.
+            mode = (detection_mode or "auto").strip() or "auto"
+            if mode == "auto" and region_type == "face":
+                mode = "grounding_bbox"
+
             logger.info(
-                "Running Florence region selector with region_type=%s query=%s",
+                "Running Florence region selector with region_type=%s query=%s mode=%s",
                 region_type,
                 query,
+                mode,
             )
 
             mask_uint8 = None
             source = None
 
-            segmentation_result = self._call_segmentation(client, image_url, query)
-            polygons = self._coerce_polygon_entries(segmentation_result)
-            if polygons:
-                mask_uint8 = self._render_mask_from_polygons(
-                    width, height, polygons, selection_mode
-                )
-                source = "referring-expression-segmentation"
+            if mode in ("auto", "segmentation"):
+                segmentation_result = self._call_segmentation(client, image_url, query)
+                polygons = self._coerce_polygon_entries(segmentation_result)
+                if polygons:
+                    mask_uint8 = self._render_mask_from_polygons(
+                        width, height, polygons, selection_mode
+                    )
+                    source = "referring-expression-segmentation"
 
-            if mask_uint8 is None:
+            if mask_uint8 is None and mode in ("auto", "grounding_bbox"):
                 grounding_result = self._call_grounding(client, image_url, query)
                 bboxes = self._coerce_bbox_entries(grounding_result)
                 if not bboxes:
@@ -382,6 +465,11 @@ class SupersideFlorence2RegionSelectorNode(
                 )
                 source = "caption-to-phrase-grounding"
 
+            if mask_uint8 is None:
+                raise RuntimeError(
+                    "Florence returned no usable region with detection_mode={}.".format(mode)
+                )
+
             bbox = self._mask_bbox(mask_uint8)
             padded_bbox = self._apply_padding(bbox, width, height, padding_percent)
 
@@ -389,6 +477,11 @@ class SupersideFlorence2RegionSelectorNode(
                 output_mask_uint8 = self._rect_mask_from_bbox(width, height, padded_bbox)
             else:
                 output_mask_uint8 = mask_uint8.copy()
+
+            # Blur after the bbox is measured, so softening the edge never
+            # moves the crop geometry the rest of the chain depends on.
+            if mask_blur_percent and float(mask_blur_percent) > 0.0:
+                output_mask_uint8 = self._blur_mask(output_mask_uint8, float(mask_blur_percent))
 
             center_x = int(round((padded_bbox[0] + padded_bbox[2]) / 2.0))
             center_y = int(round((padded_bbox[1] + padded_bbox[3]) / 2.0))
