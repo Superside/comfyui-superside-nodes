@@ -33,12 +33,15 @@ class SupersideCropToSizeNode:
 
     CATEGORY = "Superside"
 
+    # The full 3x3 grid, named so there is nothing to guess: "top-center"
+    # rather than a bare "top" that could be read as "the whole top edge".
+    # The bare forms are still accepted for anyone who saved them.
     ANCHOR_OPTIONS = [
         "center",
-        "top",
-        "bottom",
-        "left",
-        "right",
+        "top-center",
+        "bottom-center",
+        "middle-left",
+        "middle-right",
         "top-left",
         "top-right",
         "bottom-left",
@@ -104,24 +107,27 @@ class SupersideCropToSizeNode:
     )
 
     @staticmethod
-    def _anchor_offset(anchor, source, target):
-        """Top-left corner of the crop window for the chosen anchor."""
+    def _anchor_offset(edge, source, target):
+        """Offset of the crop window along one axis for the chosen edge."""
         slack = max(0, source - target)
-        if anchor in ("start", "left", "top"):
+        if edge in ("left", "top"):
             return 0
-        if anchor in ("end", "right", "bottom"):
+        if edge in ("right", "bottom"):
             return slack
-        return slack // 2
+        return slack // 2  # center / middle
 
     @classmethod
     def _crop_window(cls, anchor, source_w, source_h, target_w, target_h):
-        horizontal, vertical = "center", "center"
-        if "-" in anchor:
-            vertical, horizontal = anchor.split("-")
-        elif anchor in ("left", "right"):
-            horizontal = anchor
-        elif anchor in ("top", "bottom"):
-            vertical = anchor
+        """
+        Resolve an anchor name into the crop window's top-left corner.
+
+        Accepts the explicit grid names ("top-center", "middle-left", the four
+        corners, "center") and the bare edge names ("top", "left", ...) so a
+        workflow saved with either keeps working.
+        """
+        parts = [p for p in anchor.split("-") if p]
+        vertical = next((p for p in parts if p in ("top", "bottom")), "middle")
+        horizontal = next((p for p in parts if p in ("left", "right")), "center")
 
         left = cls._anchor_offset(horizontal, source_w, target_w)
         top = cls._anchor_offset(vertical, source_h, target_h)
