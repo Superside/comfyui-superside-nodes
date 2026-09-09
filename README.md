@@ -38,6 +38,7 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+- **Grok v2 Edit: `reference_max_dimension`.** Caps the reference images on upload so they cannot out-resolve the image being edited, without touching image_1.
 - **Stitch Region: white-halo decontamination and mask dilation.** Ported from the retired `comfyui-inpaint-cropstitch-nb2` stitch, which had both and the Superside one did not. `decontaminate_edge` (default ON) takes the destination's own colour where the feathered mask is weak, so an editor that returns the object over a white background no longer leaks a bright halo into the seam; `mask_expand_pixels` dilates a too-tight segmentation before feathering.
 - **Crop to Region can lock the crop's shape.** New `crop_aspect` (default `region (as detected)`, so nothing changes unless you set it): the crop grows on its short axis until it reaches the chosen ratio, so a small region no longer comes out square from the per-axis `min_size` floor. This ports the per-region hints the retired `comfyui-inpaint-cropstitch-nb2` pack carried - glasses want `16:9` at ~2752 px long side with ~18% context, a face wants `1:1`.
 - **New: Crop to Size (anchored).** Force an image to exact pixel dimensions with a choice of anchor (center / top-center / bottom-center / middle-left / middle-right / corners), scaling by one factor first so the output always fills the target and is never distorted. Built for formats the models cannot generate - Grok Imagine has no 4:5, so take its 3:4 and crop 6% of the height with `top` to keep the head.
@@ -150,8 +151,10 @@ xAI Grok Imagine **v2.0** editing (`xai/grok-imagine-image/v2.0/edit`), up to 3 
 
 **Crop-stitch inpainting.** Unlike GPT Image 2, Grok takes no `width`/`height` - only `aspect_ratio` + `resolution` - so it cannot be asked for the crop's exact pixel size. The stitch node rescales the edit straight onto the crop rectangle, so an edit with any other aspect ratio comes back visibly stretched. `output_size` (default `match input image_1`) closes that gap: the result is scaled to cover image_1 and centre-cropped to its exact size, never squashed. Keep `aspect_ratio` on `auto` so Grok follows image_1's own ratio and there is next to nothing to crop. Pick `fal native` only when you want the raw aspect_ratio + resolution output.
 
+`reference_max_dimension` caps the long side of `image_2`/`image_3` on upload while `image_1` always goes at full size (0 disables it). Grok's API takes one flat list of "images to edit" with no designated base, so a reference that out-resolves image_1 can end up driving the output - a 4700px product reference against a 2700px crop can come back as the product rather than the edited crop.
+
 Grok has **no mask input**: every wired image is a reference the model blends in. In a crop-stitch graph wire only `cropped_image` into `image_1` and leave `image_2`/`image_3` for real reference photos - feeding a mask image in there paints the mask's white area into the edit.
-- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`, `image_3`, `aspect_ratio`, `resolution` (1k/2k), `quality` (low/medium), `output_format`, `num_images`, `sync_mode`, `output_size` (`match input image_1` / `fal native`)
+- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`, `image_3`, `aspect_ratio`, `resolution` (1k/2k), `quality` (low/medium), `output_format`, `num_images`, `sync_mode`, `output_size` (`match input image_1` / `fal native`), `reference_max_dimension`
 - **Outputs:** `images` (IMAGE), `revised_prompt` (STRING)
 
 #### Flux Kontext Max Multi-Image Node (`SupersideFluxKontextMaxMultiImageNode`)

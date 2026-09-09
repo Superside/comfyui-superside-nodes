@@ -92,6 +92,24 @@ class SupersideGrokImagineImageV2EditNode(
                         ),
                     },
                 ),
+                "reference_max_dimension": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 8192,
+                        "step": 64,
+                        "tooltip": (
+                            "Cap the long side of the REFERENCE images (image_2, image_3) "
+                            "before upload; image_1 always goes at full size. Grok's API "
+                            "takes one flat list of 'images to edit' with no designated "
+                            "base, so a reference far larger and crisper than image_1 can "
+                            "end up driving the output - a product reference at 4700px "
+                            "against a 2700px crop invites Grok to return the product "
+                            "rather than the edited crop. 0 disables the cap."
+                        ),
+                    },
+                ),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID",
@@ -113,14 +131,22 @@ class SupersideGrokImagineImageV2EditNode(
     )
 
     def prepare_image_urls(self, client, **kwargs):
+        # image_1 is the image being edited and always goes at full size; the
+        # references can be capped so they do not out-resolve it.
+        reference_cap = int(kwargs.get("reference_max_dimension") or 0) or None
+
         image_urls = []
         for i in range(1, 4):
             image_key = f"image_{i}"
             if image_key in kwargs and kwargs[image_key] is not None:
+                cap = None if i == 1 else reference_cap
                 try:
-                    url = self.upload_image(client, kwargs[image_key])
+                    url = self.upload_image(client, kwargs[image_key], max_dimension=cap)
                     image_urls.append(url)
-                    logger.info(f"Uploaded {image_key}: {url}")
+                    if cap:
+                        logger.info("Uploaded %s capped at %dpx: %s", image_key, cap, url)
+                    else:
+                        logger.info(f"Uploaded {image_key}: {url}")
                 except Exception as e:
                     logger.warning(f"Failed to upload {image_key}: {str(e)}")
         return image_urls
