@@ -38,6 +38,7 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+- **Text Preview now displays on its own.** `SupersideTextPreviewNode` exists so this repo does not depend on the sibling `superside-utility-nodes` package, but it was missing from `web/js/show_text.js`, so the incoming string never rendered on the node - it only worked if that other package happened to be installed. It is registered now.
 - **Z-Image Turbo Inpaint+LoRA is now priced** ($0.02 per output megapixel, read from fal's own model page), the AnyLLM text/vision routers are registered so their calls show up in the report, and `MANUAL_PRICES` lets you record a measured per-call cost for the endpoints fal bills by GPU-second or token.
 - **Grok Imagine v2 Edit is now crop-stitch safe.** New `output_size` (default `match input image_1`) returns the edit at image_1's exact pixel size with the aspect ratio preserved, so it drops into an inpaint crop-stitch graph in place of GPT Image 2 without the stitch node stretching the result.
 - **New: cost tracking for every fal call.** Each fal-backed node now shows its fal.ai price on the node, every call is priced into an in-memory ledger, and the new **Superside Fal Cost Report** node prints the breakdown and the run total. See [Cost tracking](#cost-tracking).

@@ -6,6 +6,7 @@ import { ComfyWidgets } from "../../../scripts/widgets.js";
 
 const TEXT_DISPLAY_NODES = [
     "SupersidePromptBoxNode",
+    "SupersideTextPreviewNode",
     "SupersidePromptSplitterNode",
     "SupersideAnyLLMVisionNode",
     "SupersideAnyLLMTextNode",
