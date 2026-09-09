@@ -38,6 +38,7 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+- **New: Crop to Size (anchored).** Force an image to exact pixel dimensions with a choice of anchor (center / top / bottom / left / right / corners), scaling by one factor first so the output always fills the target and is never distorted. Built for formats the models cannot generate - Grok Imagine has no 4:5, so take its 3:4 and crop 6% of the height with `top` to keep the head.
 - **Text Preview now displays on its own.** `SupersideTextPreviewNode` exists so this repo does not depend on the sibling `superside-utility-nodes` package, but it was missing from `web/js/show_text.js`, so the incoming string never rendered on the node - it only worked if that other package happened to be installed. It is registered now.
 - **Z-Image Turbo Inpaint+LoRA is now priced** ($0.02 per output megapixel, read from fal's own model page), the AnyLLM text/vision routers are registered so their calls show up in the report, and `MANUAL_PRICES` lets you record a measured per-call cost for the endpoints fal bills by GPU-second or token.
 - **Grok Imagine v2 Edit is now crop-stitch safe.** New `output_size` (default `match input image_1`) returns the edit at image_1's exact pixel size with the aspect ratio preserved, so it drops into an inpaint crop-stitch graph in place of GPT Image 2 without the stitch node stretching the result.
@@ -403,6 +404,12 @@ Neutralizes a color cast by calibrating RGB from a neutral/white reference - bui
 - **Inputs:** `image`, `mode` (manual_sample / auto_white_patch / gray_world) · optional: `sample_x`, `sample_y`, `sample_size` (manual patch position/size), `auto_percentile` (auto mode), `strength` (0-1, default 1), `preserve_luminance` (default ON)
 - **Outputs:** `image` (IMAGE)
 - **Tip:** `manual_sample` is the most reliable - point `sample_x`/`sample_y` at an area you know should be white/neutral (e.g. a catalogue's white background).
+
+#### Crop to Size (anchored) (`SupersideCropToSizeNode`)
+Force an image to exact pixel dimensions, choosing which part survives. Scales by a single factor until the image covers the target, then cuts - so the result is always exactly the requested size and **never** squashed. Use it for a format the model cannot generate: Grok Imagine's `aspect_ratio` has no 4:5, so generate 3:4 (the nearest taller ratio) and crop 6% of the height here. Cropping to 4:5 from 1:1 instead would throw away 20% of the width.
+`anchor` picks the side that stays put - `top` keeps the head in a portrait, `center` shaves the crown and the chin equally. `fit` can be set to `crop only` to cut the pixel rectangle without any scaling (a source smaller than the target then stays at its own size rather than being padded). An optional `mask` is cropped with identical geometry so it stays aligned.
+- **Inputs:** `image`, `target_width`, `target_height`, `anchor` · optional: `fit` (`cover` / `crop only`), `mask`, `resample`
+- **Outputs:** `image` (IMAGE), `mask` (MASK), `width` (INT), `height` (INT)
 
 ### Cost reporting
 

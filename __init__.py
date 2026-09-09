@@ -8,6 +8,7 @@ try:
     from .modules.color_grading_node import SupersideColorGradingNode
     from .modules.color_match_node import SupersideColorMatchNode
     from .modules.crop_by_region_node import SupersideCropByRegionNode
+    from .modules.crop_to_size_node import SupersideCropToSizeNode
     from .modules.crystal_upscaler_node import SupersideCrystalUpscalerNode
     from .modules.stitch_region_node import SupersideStitchRegionNode
     from .modules.skin_intensity_prompt_node import SupersideSkinIntensityPromptNode
@@ -83,6 +84,7 @@ except ImportError:
     from modules.color_grading_node import SupersideColorGradingNode
     from modules.color_match_node import SupersideColorMatchNode
     from modules.crop_by_region_node import SupersideCropByRegionNode
+    from modules.crop_to_size_node import SupersideCropToSizeNode
     from modules.crystal_upscaler_node import SupersideCrystalUpscalerNode
     from modules.stitch_region_node import SupersideStitchRegionNode
     from modules.skin_intensity_prompt_node import SupersideSkinIntensityPromptNode
@@ -149,6 +151,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideColorGradingNode": SupersideColorGradingNode,
     "SupersideColorMatchNode": SupersideColorMatchNode,
     "SupersideCropByRegionNode": SupersideCropByRegionNode,
+    "SupersideCropToSizeNode": SupersideCropToSizeNode,
     "SupersideCrystalUpscalerNode": SupersideCrystalUpscalerNode,
     "SupersideStitchRegionNode": SupersideStitchRegionNode,
     "SupersideSkinIntensityPromptNode": SupersideSkinIntensityPromptNode,
@@ -219,6 +222,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideColorGradingNode": "Superside Color Grading",
     "SupersideColorMatchNode": "Superside Color Match",
     "SupersideCropByRegionNode": "Superside Crop By Region",
+    "SupersideCropToSizeNode": "Superside Crop to Size (anchored)",
     "SupersideCrystalUpscalerNode": "Superside Crystal Upscaler (portrait detail)",
     "SupersideStitchRegionNode": "Superside Stitch Region",
     "SupersideSkinIntensityPromptNode": "Superside Skin Intensity Dial",
