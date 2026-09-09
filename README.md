@@ -38,6 +38,7 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+- **Grok Imagine v2 Edit is now crop-stitch safe.** New `output_size` (default `match input image_1`) returns the edit at image_1's exact pixel size with the aspect ratio preserved, so it drops into an inpaint crop-stitch graph in place of GPT Image 2 without the stitch node stretching the result.
 - **New: cost tracking for every fal call.** Each fal-backed node now shows its fal.ai price on the node, every call is priced into an in-memory ledger, and the new **Superside Fal Cost Report** node prints the breakdown and the run total. See [Cost tracking](#cost-tracking).
 - **New: Grok Imagine Image v2 Edit.** Wraps `xai/grok-imagine-image/v2.0/edit` — same controls as the quality endpoint (up to 3 reference images, `aspect_ratio`, `resolution` 1k/2k, `output_format`, `num_images`, `sync_mode`) plus a `quality` level (`low`/`medium`).
 - **Manual Detail Sheet — selectable crop aspect ratio.** New `aspect_ratio` dropdown (`1:1`, `4:5`, `2:3`, `9:16`, `16:9`); the boxes are drawn, dragged and scroll-resized at the chosen ratio. Defaults to `1:1`, so existing saved workflows are unchanged.
@@ -130,7 +131,11 @@ xAI Grok Imagine editing, up to 3 reference images, returns the model's revised 
 
 #### Grok Imagine Image v2 Edit (`SupersideGrokImagineImageV2EditNode`)
 xAI Grok Imagine **v2.0** editing (`xai/grok-imagine-image/v2.0/edit`), up to 3 reference images, returns the model's revised prompt. Same controls as the quality endpoint plus a `quality` level (`low`/`medium`). `aspect_ratio` defaults to `auto`, which keeps the first input image's ratio.
-- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`, `image_3`, `aspect_ratio`, `resolution` (1k/2k), `quality` (low/medium), `output_format`, `num_images`, `sync_mode`
+
+**Crop-stitch inpainting.** Unlike GPT Image 2, Grok takes no `width`/`height` - only `aspect_ratio` + `resolution` - so it cannot be asked for the crop's exact pixel size. The stitch node rescales the edit straight onto the crop rectangle, so an edit with any other aspect ratio comes back visibly stretched. `output_size` (default `match input image_1`) closes that gap: the result is scaled to cover image_1 and centre-cropped to its exact size, never squashed. Keep `aspect_ratio` on `auto` so Grok follows image_1's own ratio and there is next to nothing to crop. Pick `fal native` only when you want the raw aspect_ratio + resolution output.
+
+Grok has **no mask input**: every wired image is a reference the model blends in. In a crop-stitch graph wire only `cropped_image` into `image_1` and leave `image_2`/`image_3` for real reference photos - feeding a mask image in there paints the mask's white area into the edit.
+- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`, `image_3`, `aspect_ratio`, `resolution` (1k/2k), `quality` (low/medium), `output_format`, `num_images`, `sync_mode`, `output_size` (`match input image_1` / `fal native`)
 - **Outputs:** `images` (IMAGE), `revised_prompt` (STRING)
 
 #### Flux Kontext Max Multi-Image Node (`SupersideFluxKontextMaxMultiImageNode`)
