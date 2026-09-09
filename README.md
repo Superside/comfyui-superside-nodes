@@ -38,6 +38,7 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+- **Z-Image Turbo Inpaint+LoRA is now priced** ($0.02 per output megapixel, read from fal's own model page), the AnyLLM text/vision routers are registered so their calls show up in the report, and `MANUAL_PRICES` lets you record a measured per-call cost for the endpoints fal bills by GPU-second or token.
 - **Grok Imagine v2 Edit is now crop-stitch safe.** New `output_size` (default `match input image_1`) returns the edit at image_1's exact pixel size with the aspect ratio preserved, so it drops into an inpaint crop-stitch graph in place of GPT Image 2 without the stitch node stretching the result.
 - **New: cost tracking for every fal call.** Each fal-backed node now shows its fal.ai price on the node, every call is priced into an in-memory ledger, and the new **Superside Fal Cost Report** node prints the breakdown and the run total. See [Cost tracking](#cost-tracking).
 - **New: Grok Imagine Image v2 Edit.** Wraps `xai/grok-imagine-image/v2.0/edit` — same controls as the quality endpoint (up to 3 reference images, `aspect_ratio`, `resolution` 1k/2k, `output_format`, `num_images`, `sync_mode`) plus a `quality` level (`low`/`medium`).
@@ -67,7 +68,7 @@ Every fal-backed node reports what it costs, so a workflow can be priced before 
 
 The ledger is in memory only: it starts empty on every ComfyUI restart and nothing is written to disk.
 
-**What is and isn't priced.** 19 of the endpoints this package calls publish a per-call price, and those are computed exactly from the request and the response (output count, resolution, quality, megapixels, video seconds, training steps). The rest are billed by GPU-second (Florence-2, Juggernaut, Bria background replace) or by token consumption (GPT Image 2, Gemini Omni Flash), and fal publishes no per-call figure for them. Those calls are **counted and listed separately rather than guessed at**, so the reported total is always a real lower bound and never silently wrong:
+**What is and isn't priced.** 20 of the endpoints this package calls publish a per-call price, and those are computed exactly from the request and the response (output count, resolution, quality, megapixels, video seconds, training steps). The rest are billed by GPU-second (Florence-2, Juggernaut, Bria background replace) or by token consumption (GPT Image 2, Gemini Omni Flash, the AnyLLM routers), and fal publishes no per-call figure for them. Those calls are **counted and listed separately rather than guessed at**, so the reported total is always a real lower bound and never silently wrong:
 
 ```
 TOTAL        4 priced call(s)                       $0.4870 USD
@@ -79,6 +80,17 @@ TOTAL        4 priced call(s)                       $0.4870 USD
 
 The total above EXCLUDES those calls.
 ```
+
+**Filling in the unpriced ones.** For a GPU-second or token-billed endpoint you can read the real per-request cost off fal's usage dashboard once and record it in `MANUAL_PRICES` in `modules/fal_pricing.py`:
+
+```python
+MANUAL_PRICES = {
+    "fal-ai/florence-2-large/caption-to-phrase-grounding": 0.0012,
+    "openrouter/router/vision": 0.004,
+}
+```
+
+Those calls then count toward the total and are labelled as measured by hand rather than published by fal.
 
 **Keeping prices current.** fal changes prices. From the repo root:
 

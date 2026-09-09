@@ -369,13 +369,32 @@ PRICES = {
     "fal-ai/seedvr/upscale/image/seamless": _unpriced(
         "no published per-call price", NO_PUBLISHED_PRICE,
     ),
-    "fal-ai/z-image/turbo/inpaint/lora": _unpriced(
-        "no published per-call price for this endpoint (the tiling/lora variant is $0.025 per megapixel)",
-        NO_PUBLISHED_PRICE,
+    "fal-ai/z-image/turbo/inpaint/lora": _priced(
+        "$0.02 per output megapixel",
+        # No rounding: fal states rounding for flux-pro fill but not for this
+        # endpoint, so bill the literal megapixel count rather than overstating.
+        _per_output_megapixel(0.02, round_up=False),
     ),
     "fal-ai/crystal-upscaler": _unpriced(
         "not in fal's catalogue under this id; clarityai/crystal-upscaler is $0.016 per output megapixel",
         NO_PUBLISHED_PRICE,
+    ),
+    # ---- LLM routers: billed by the upstream model's own token rates -------
+    "openrouter/router/vision": _unpriced(
+        "billed at the routed model's own token rates (the `model` widget picks it)",
+        TOKEN_BILLED,
+    ),
+    "openrouter/router": _unpriced(
+        "billed at the routed model's own token rates (the `model` widget picks it)",
+        TOKEN_BILLED,
+    ),
+    "fal-ai/any-llm/vision": _unpriced(
+        "billed at the routed model's own token rates (the `model` widget picks it)",
+        TOKEN_BILLED,
+    ),
+    "fal-ai/any-llm": _unpriced(
+        "billed at the routed model's own token rates (the `model` widget picks it)",
+        TOKEN_BILLED,
     ),
     "fal-ai/topaz/upscale/image": _unpriced(
         "not in fal's catalogue under this id; the topaz/upscale/image/* variants bill $0.08 per started 2-24 MP depending on model",
@@ -387,6 +406,8 @@ PRICES = {
 # Which fal endpoint(s) each node class calls. Used to show the price note on
 # the node itself. A node that can pick between endpoints lists all of them.
 NODE_ENDPOINTS = {
+    "SupersideAnyLLMTextNode": ["openrouter/router", "fal-ai/any-llm"],
+    "SupersideAnyLLMVisionNode": ["openrouter/router/vision", "fal-ai/any-llm/vision"],
     "SupersideBriaBackgroundReplaceNode": ["fal-ai/bria/background/replace"],
     "SupersideBriaBackgroundStandardizerNode": ["fal-ai/bria/background/remove"],
     "SupersideBriaReplaceBackgroundNode": ["bria/replace-background"],
@@ -479,6 +500,21 @@ PUBLISHED_AMOUNTS = {
 # public API
 # --------------------------------------------------------------------------
 
+# Per-call prices measured by hand, for the endpoints fal bills by GPU-second
+# or by token and publishes no per-call figure for. Read the real number off
+# fal's usage dashboard (a single request's cost) and add it here; the cost
+# report then folds those calls into the total instead of listing them as
+# unpriced, and labels them as measured rather than published.
+#
+#   MANUAL_PRICES = {
+#       "fal-ai/florence-2-large/caption-to-phrase-grounding": 0.0012,
+#       "openrouter/router/vision": 0.004,
+#   }
+#
+# Keys are endpoint ids, values are USD per call.
+MANUAL_PRICES = {}
+
+
 def get_note(endpoint):
     """The human-readable fal price for one endpoint, or None if unknown."""
     entry = PRICES.get(endpoint)
@@ -497,8 +533,17 @@ def estimate(endpoint, arguments, result):
     Returns a dict: usd (float or None), detail (str), note (str or None),
     reason (str or None - why usd is None).
     """
+    manual = MANUAL_PRICES.get(endpoint)
     entry = PRICES.get(endpoint)
+
     if entry is None:
+        if manual is not None:
+            return {
+                "usd": float(manual),
+                "detail": "${:.4f} per call, measured by hand".format(manual),
+                "note": None,
+                "reason": None,
+            }
         return {
             "usd": None,
             "detail": "endpoint not in the price table",
@@ -507,6 +552,13 @@ def estimate(endpoint, arguments, result):
         }
 
     if entry["estimator"] is None:
+        if manual is not None:
+            return {
+                "usd": float(manual),
+                "detail": "${:.4f} per call, measured by hand ({})".format(manual, entry["note"]),
+                "note": entry["note"],
+                "reason": None,
+            }
         return {
             "usd": None,
             "detail": entry["note"],
