@@ -596,6 +596,25 @@ def _check_against_fal():  # pragma: no cover - manual maintenance helper
             live[item["id"]] = item.get("pricingInfoOverride")
         page += 1
 
+    def resolves(endpoint):
+        """
+        Is the endpoint id still live?
+
+        fal's model listing is not a complete inventory - aliases and unlisted
+        endpoints are missing from it while working perfectly. The per-endpoint
+        queue schema is the real existence check: 200 means callable, 404 means
+        gone.
+        """
+        try:
+            response = session.get(
+                "https://fal.ai/api/openapi/queue/openapi.json",
+                params={"endpoint_id": endpoint},
+                timeout=45,
+            )
+            return response.status_code == 200
+        except Exception:
+            return None  # network problem, not a verdict
+
     amount_re = re.compile(r"\$[0-9]+(?:\.[0-9]+)?")
     findings = 0
 
@@ -603,9 +622,19 @@ def _check_against_fal():  # pragma: no cover - manual maintenance helper
     for endpoint in sorted(PRICES):
         snapshot = PUBLISHED_AMOUNTS.get(endpoint, [])
         if endpoint not in live:
-            print("[MISSING ] {}\n     not in fal's catalogue under this id - it may have been "
-                  "renamed".format(endpoint))
-            findings += 1
+            callable_now = resolves(endpoint)
+            if callable_now is True:
+                print("[UNLISTED] {}\n     callable (its queue schema resolves) but absent from "
+                      "fal's listing, so no price is published for it - fine to keep "
+                      "calling".format(endpoint))
+            elif callable_now is False:
+                print("[GONE    ] {}\n     fal no longer serves this endpoint id - the node "
+                      "calling it needs a new id".format(endpoint))
+                findings += 1
+            else:
+                print("[UNKNOWN ] {}\n     not in the listing and the schema probe failed - "
+                      "check your connection".format(endpoint))
+                findings += 1
             continue
         current = sorted(set(amount_re.findall(live[endpoint] or "")))
         if current == snapshot:

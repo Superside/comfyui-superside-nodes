@@ -38,7 +38,7 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
-- **New: cost tracking for every fal call.** Each fal-backed node now carries its fal.ai price in its tooltip, every call is priced into an in-memory ledger, and the new **Superside Fal Cost Report** node prints the breakdown and the run total. See [Cost tracking](#cost-tracking).
+- **New: cost tracking for every fal call.** Each fal-backed node now shows its fal.ai price on the node, every call is priced into an in-memory ledger, and the new **Superside Fal Cost Report** node prints the breakdown and the run total. See [Cost tracking](#cost-tracking).
 - **New: Grok Imagine Image v2 Edit.** Wraps `xai/grok-imagine-image/v2.0/edit` — same controls as the quality endpoint (up to 3 reference images, `aspect_ratio`, `resolution` 1k/2k, `output_format`, `num_images`, `sync_mode`) plus a `quality` level (`low`/`medium`).
 - **Manual Detail Sheet — selectable crop aspect ratio.** New `aspect_ratio` dropdown (`1:1`, `4:5`, `2:3`, `9:16`, `16:9`); the boxes are drawn, dragged and scroll-resized at the chosen ratio. Defaults to `1:1`, so existing saved workflows are unchanged.
 - **New: Architectural Style Dial.** Prompt driver for interior / real-estate generation with three styles (`transitional`, `traditional`, `modern`) × room × realism level, described through general material/palette categories. Ships with `modules/architectural_styles_glossary.txt`.
@@ -56,7 +56,7 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 Every fal-backed node reports what it costs, so a workflow can be priced before and after it runs.
 
-**On the node.** Each node's tooltip ends with its fal.ai price, e.g. `fal price (2026-09-09): $0.04 (low) / $0.06 (medium) per 1K image, $0.06 / $0.08 per 2K image, plus $0.01 per input image`. Nodes that make no fal call have no such line. The prices live in `modules/fal_pricing.py` and are attached at registration time, so there is nothing to maintain per node file.
+**On the node.** Every fal-backed node shows its price in small green text just under the node body, e.g. `fal $0.04 (low) / $0.06 (medium) per 1K image, $0.06 / $0.08 per 2K...`, and the full text is in the node's tooltip (hover the title). Long notes are truncated to the node's width, and the line is hidden below 50% zoom. Nodes that make no fal call show nothing. The prices live in `modules/fal_pricing.py` and are attached to the node description at registration time, so there is nothing to maintain per node file; `web/js/price_note.js` draws them. It paints on the canvas rather than adding a widget on purpose - a widget would shift `widgets_values` in every saved workflow.
 
 **After the run.** Drop a **Superside Fal Cost Report** node in the graph and it adds up everything the Superside nodes called. All nodes share one API helper, so the report covers every node in this package without any wiring per node.
 - `scope`: `this run` (calls since this report node last reported) or `session (since ComfyUI started)`.
@@ -85,7 +85,7 @@ The total above EXCLUDES those calls.
 python -m modules.fal_pricing --check
 ```
 
-That re-reads fal's live catalogue and prints any endpoint whose published amounts no longer match the snapshot in `PUBLISHED_AMOUNTS` (a reworded blurb stays quiet; a real price move shows up). Update the note, the snapshot and `SOURCE_DATE` for anything it lists. It also flags endpoint ids that are no longer in fal's catalogue - currently `fal-ai/topaz/upscale/image`, `fal-ai/crystal-upscaler` and `fal-ai/bytedance/seedance/v1/lite/reference-to-video`, which are worth re-checking against the model pages.
+That re-reads fal's live catalogue and prints any endpoint whose published amounts no longer match the snapshot in `PUBLISHED_AMOUNTS` (a reworded blurb stays quiet; a real price move shows up). Update the note, the snapshot and `SOURCE_DATE` for anything it lists. It also probes each endpoint id that is missing from fal's listing: `[UNLISTED]` means the id still resolves and is fine to call (it just has no published price - `fal-ai/topaz/upscale/image`, `fal-ai/crystal-upscaler` and `fal-ai/bytedance/seedance/v1/lite/reference-to-video` are all in this bucket, verified 2026-09-09), while `[GONE]` means fal no longer serves it and the node needs a new id.
 
 fal is the only source of truth for what you are actually billed - treat these numbers as close estimates, not an invoice.
 
@@ -439,6 +439,7 @@ comfyui-superside-nodes/
 │   ├── fal_cost_ledger.py      # In-memory record of every fal call and its cost
 │   └── <node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
+├── web/js/price_note.js       # Draws each node's fal price under the node
 ├── requirements.txt
 └── README.md
 ```

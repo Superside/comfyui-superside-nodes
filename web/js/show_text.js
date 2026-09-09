@@ -10,6 +10,7 @@ const TEXT_DISPLAY_NODES = [
     "SupersideAnyLLMVisionNode",
     "SupersideAnyLLMTextNode",
     "SupersideGrokImagineImageQualityEditNode",
+    "SupersideGrokImagineImageV2EditNode",
     "SupersideSeedreamV45EditNode",
     "SupersideSeedreamV5ProEditNode",
     "SupersideBriaBackgroundStandardizerNode",
