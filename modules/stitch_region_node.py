@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from PIL import Image, ImageFilter
+from scipy.ndimage import grey_dilation
 
 
 class SupersideStitchRegionNode:
@@ -15,6 +16,13 @@ class SupersideStitchRegionNode:
     mask is feathered (Gaussian blur) so the seam blends smoothly instead of
     showing a hard rectangle edge.
     """
+
+    # Below DECONTAMINATE_FLOOR the seam takes the destination's colour
+    # outright; by FLOOR + RANGE it is the source's. Same curve the retired
+    # comfyui-inpaint-cropstitch-nb2 stitch used, which is where this
+    # behaviour comes from.
+    DECONTAMINATE_FLOOR = 0.12
+    DECONTAMINATE_RANGE = 0.55
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -44,6 +52,23 @@ class SupersideStitchRegionNode:
                         "tooltip": "Gaussian blur radius applied to the paste mask edge, for a seamless blend.",
                     },
                 ),
+                "mask_expand_pixels": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 512,
+                        "step": 1,
+                        "tooltip": "Dilate the mask before feathering, so a slightly-too-tight segmentation still covers the whole edited object. A segmentation of a spectacle frame usually needs some of this, or the frame's outer edge keeps the old pixels.",
+                    },
+                ),
+                "decontaminate_edge": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "Where the feathered mask is weak, take the destination's own colour instead of a mix with the source. Image editors often return the edited object over a white or blank background, and blending that through a soft matte leaks a bright halo along the edge. Turn it off only if you want the raw blend.",
+                    },
+                ),
             },
         }
 
@@ -68,6 +93,8 @@ class SupersideStitchRegionNode:
         crop_h,
         mask=None,
         feather_pixels=24,
+        mask_expand_pixels=0,
+        decontaminate_edge=True,
     ):
         if not isinstance(destination, torch.Tensor) or destination.ndim != 4:
             raise ValueError("destination must be a ComfyUI IMAGE tensor [B,H,W,C].")
@@ -102,6 +129,13 @@ class SupersideStitchRegionNode:
         else:
             region_mask = np.ones((crop_h, crop_w), dtype=np.float32)
 
+        # Dilate before feathering: growing a blurred mask just moves the
+        # gradient, growing a hard one actually covers more of the object.
+        if mask_expand_pixels and int(mask_expand_pixels) > 0:
+            radius = int(mask_expand_pixels)
+            footprint = np.ones((radius * 2 + 1, radius * 2 + 1), dtype=bool)
+            region_mask = grey_dilation(region_mask, footprint=footprint)
+
         if feather_pixels and int(feather_pixels) > 0:
             pil_mask = Image.fromarray((np.clip(region_mask, 0.0, 1.0) * 255.0).astype(np.uint8))
             pil_mask = pil_mask.filter(ImageFilter.GaussianBlur(radius=float(feather_pixels)))
@@ -112,6 +146,17 @@ class SupersideStitchRegionNode:
         result = dest_np.copy()
         dest_region = result[crop_y:crop_y + crop_h, crop_x:crop_x + crop_w, :3]
         src_rgb = src_np[:, :, :3]
+
+        if decontaminate_edge:
+            # An editor that returns the object over a white/blank background
+            # leaks that background into the seam once it is blended through a
+            # soft matte. Replace the source colour with the destination's own
+            # wherever the matte is weak, before the blend, so the halo has
+            # nothing to come from. Fully inside the mask nothing changes.
+            cleanup = np.clip((region_mask - self.DECONTAMINATE_FLOOR)
+                              / self.DECONTAMINATE_RANGE, 0.0, 1.0)[:, :, None]
+            src_rgb = cleanup * src_rgb + (1.0 - cleanup) * dest_region
+
         blended = dest_region * (1.0 - region_mask_3) + src_rgb * region_mask_3
         result[crop_y:crop_y + crop_h, crop_x:crop_x + crop_w, :3] = blended
 
