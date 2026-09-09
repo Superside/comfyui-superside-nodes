@@ -1,7 +1,11 @@
+import logging
+
 import numpy as np
 import torch
 from PIL import Image, ImageFilter
 from scipy.ndimage import grey_dilation
+
+logger = logging.getLogger(__name__)
 
 
 class SupersideStitchRegionNode:
@@ -137,9 +141,27 @@ class SupersideStitchRegionNode:
             region_mask = grey_dilation(region_mask, footprint=footprint)
 
         if feather_pixels and int(feather_pixels) > 0:
+            peak_before = float(region_mask.max())
             pil_mask = Image.fromarray((np.clip(region_mask, 0.0, 1.0) * 255.0).astype(np.uint8))
             pil_mask = pil_mask.filter(ImageFilter.GaussianBlur(radius=float(feather_pixels)))
             region_mask = np.asarray(pil_mask, dtype=np.float32) / 255.0
+
+            # A Gaussian of radius R over a structure only a few pixels wide -
+            # a spectacle rim, a cable, a strap - spreads it out and drops its
+            # peak far below 1: a 24px feather on an 8px rim leaves the mask at
+            # 0.125, so the paste is 13% applied and the new object is mixed
+            # with whatever lies underneath. Scaling the whole mask back up by
+            # the lost peak keeps the core solid while the outer falloff stays
+            # soft. (This is what the nb2 stitch did and what the halo fix
+            # alone did not restore.)
+            peak_after = float(region_mask.max())
+            if peak_before > 0.0 and 0.0 < peak_after < peak_before:
+                region_mask = np.clip(region_mask * (peak_before / peak_after), 0.0, 1.0)
+                logger.info(
+                    "Stitch: feather dropped the mask peak to %.3f over a thin region; "
+                    "renormalised back to %.3f so the paste is fully applied",
+                    peak_after, peak_before,
+                )
 
         region_mask_3 = region_mask[:, :, None]
 
