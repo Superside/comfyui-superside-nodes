@@ -48,6 +48,13 @@ app.registerExtension({
                     w.inputEl.style.opacity = 0.6;
                     w.value = item;
                     w._supersideDisplay = true;
+                    // Never serialise the display. ComfyUI maps widgets_values
+                    // positionally, so a saved display value sits in the slot
+                    // that the next widget added on the Python side will claim -
+                    // and then a STRING lands where an INT is expected and the
+                    // node refuses to run. (Verified in the frontend: `serialize`
+                    // on the widget is honoured, `options.serialize` is not.)
+                    w.serialize = false;
                 }
             }
 
@@ -69,22 +76,11 @@ app.registerExtension({
             }
         };
 
-        // Preserve widget values so text survives workflow save/load
-        const VALUES = Symbol();
-        const configure = nodeType.prototype.configure;
-        nodeType.prototype.configure = function () {
-            this[VALUES] = arguments[0]?.widgets_values;
-            return configure?.apply(this, arguments);
-        };
-
-        const onConfigure = nodeType.prototype.onConfigure;
-        nodeType.prototype.onConfigure = function () {
-            onConfigure?.apply(this, arguments);
-            if (this[VALUES]?.length) {
-                requestAnimationFrame(() => {
-                    populate.call(this, this[VALUES].slice(-1));
-                });
-            }
-        };
+        // The display is a view of the last run, not part of the document, so
+        // there is deliberately nothing to restore on load. The previous
+        // version re-displayed the LAST entry of widgets_values, which only
+        // held the display text while the display happened to be the last
+        // widget - once a real widget is appended on the Python side that
+        // restore shows the new widget's value as if it were model output.
     },
 });
