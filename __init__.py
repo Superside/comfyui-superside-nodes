@@ -18,6 +18,7 @@ try:
     from .modules.gemini_omni_flash_edit_node import SupersideGeminiOmniFlashEditNode
     from .modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
     from .modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
+    from .modules.grok_imagine_image_v2_edit_node import SupersideGrokImagineImageV2EditNode
     from .modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
     from .modules.image_retouch_node import SupersideImageRetouchNode
     from .modules.juggernaut_flux_pro_img2img_node import SupersideJuggernautFluxProImg2ImgNode
@@ -91,6 +92,7 @@ except ImportError:
     from modules.gemini_omni_flash_edit_node import SupersideGeminiOmniFlashEditNode
     from modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
     from modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
+    from modules.grok_imagine_image_v2_edit_node import SupersideGrokImagineImageV2EditNode
     from modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
     from modules.image_retouch_node import SupersideImageRetouchNode
     from modules.juggernaut_flux_pro_img2img_node import SupersideJuggernautFluxProImg2ImgNode
@@ -155,6 +157,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideGeminiOmniFlashEditNode": SupersideGeminiOmniFlashEditNode,
     "SupersideGPTImage2EditNode": SupersideGPTImage2EditNode,
     "SupersideGrokImagineImageQualityEditNode": SupersideGrokImagineImageQualityEditNode,
+    "SupersideGrokImagineImageV2EditNode": SupersideGrokImagineImageV2EditNode,
     "SupersideIdeogramUpscaleNode": SupersideIdeogramUpscaleNode,
     "SupersideImageRetouchNode": SupersideImageRetouchNode,
     "SupersideJuggernautFluxProImg2ImgNode": SupersideJuggernautFluxProImg2ImgNode,
@@ -223,6 +226,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideGeminiOmniFlashEditNode": "Superside Gemini Omni Flash Edit",
     "SupersideGPTImage2EditNode": "Superside GPT Image 2 Edit",
     "SupersideGrokImagineImageQualityEditNode": "Superside Grok Imagine Image Quality Edit",
+    "SupersideGrokImagineImageV2EditNode": "Superside Grok Imagine Image v2 Edit",
     "SupersideIdeogramUpscaleNode": "Superside Ideogram Upscale",
     "SupersideImageRetouchNode": "Superside Image Retouch",
     "SupersideJuggernautFluxProImg2ImgNode": "Superside Juggernaut Flux Pro Image-to-Image",

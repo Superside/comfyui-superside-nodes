@@ -38,6 +38,7 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+- **New: Grok Imagine Image v2 Edit.** Wraps `xai/grok-imagine-image/v2.0/edit` — same controls as the quality endpoint (up to 3 reference images, `aspect_ratio`, `resolution` 1k/2k, `output_format`, `num_images`, `sync_mode`) plus a `quality` level (`low`/`medium`).
 - **Manual Detail Sheet — selectable crop aspect ratio.** New `aspect_ratio` dropdown (`1:1`, `4:5`, `2:3`, `9:16`, `16:9`); the boxes are drawn, dragged and scroll-resized at the chosen ratio. Defaults to `1:1`, so existing saved workflows are unchanged.
 - **New: Architectural Style Dial.** Prompt driver for interior / real-estate generation with three styles (`transitional`, `traditional`, `modern`) × room × realism level, described through general material/palette categories. Ships with `modules/architectural_styles_glossary.txt`.
 - **Z-Image Turbo Inpaint+LoRA — stack up to 3 LoRAs.** Three generic `lora_N_url` / `lora_N_scale` slots so you can paste any HuggingFace `/resolve/…safetensors` LoRA (the Skin-Detail variant keeps its URLs hidden for cog-comfyui/Replicate).
@@ -87,6 +88,11 @@ Masking is controlled by a single `mask_mode`: `off - edit whole image` (default
 #### Grok Imagine Image Quality Edit (`SupersideGrokImagineImageQualityEditNode`)
 xAI Grok Imagine editing, up to 3 reference images, returns the model's revised prompt.
 - **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`, `image_3`, `aspect_ratio`, `resolution` (1k/2k), `output_format`, `num_images`, `sync_mode`
+- **Outputs:** `images` (IMAGE), `revised_prompt` (STRING)
+
+#### Grok Imagine Image v2 Edit (`SupersideGrokImagineImageV2EditNode`)
+xAI Grok Imagine **v2.0** editing (`xai/grok-imagine-image/v2.0/edit`), up to 3 reference images, returns the model's revised prompt. Same controls as the quality endpoint plus a `quality` level (`low`/`medium`). `aspect_ratio` defaults to `auto`, which keeps the first input image's ratio.
+- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`, `image_3`, `aspect_ratio`, `resolution` (1k/2k), `quality` (low/medium), `output_format`, `num_images`, `sync_mode`
 - **Outputs:** `images` (IMAGE), `revised_prompt` (STRING)
 
 #### Flux Kontext Max Multi-Image Node (`SupersideFluxKontextMaxMultiImageNode`)
