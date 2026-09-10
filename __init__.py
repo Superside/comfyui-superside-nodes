@@ -19,6 +19,7 @@ try:
     from .modules.flux_pro_fill_node import SupersideFluxProFillNode
     from .modules.gemini_omni_flash_edit_node import SupersideGeminiOmniFlashEditNode
     from .modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
+    from .modules.gpt_image_25_sunburst_edit_node import SupersideGPTImage25SunburstEditNode
     from .modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
     from .modules.grok_imagine_image_v2_edit_node import SupersideGrokImagineImageV2EditNode
     from .modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
@@ -95,6 +96,7 @@ except ImportError:
     from modules.flux_pro_fill_node import SupersideFluxProFillNode
     from modules.gemini_omni_flash_edit_node import SupersideGeminiOmniFlashEditNode
     from modules.gpt_image_2_edit_node import SupersideGPTImage2EditNode
+    from modules.gpt_image_25_sunburst_edit_node import SupersideGPTImage25SunburstEditNode
     from modules.grok_imagine_image_quality_edit_node import SupersideGrokImagineImageQualityEditNode
     from modules.grok_imagine_image_v2_edit_node import SupersideGrokImagineImageV2EditNode
     from modules.ideogram_upscale_node import SupersideIdeogramUpscaleNode
@@ -162,6 +164,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideFluxProFillNode": SupersideFluxProFillNode,
     "SupersideGeminiOmniFlashEditNode": SupersideGeminiOmniFlashEditNode,
     "SupersideGPTImage2EditNode": SupersideGPTImage2EditNode,
+    "SupersideGPTImage25SunburstEditNode": SupersideGPTImage25SunburstEditNode,
     "SupersideGrokImagineImageQualityEditNode": SupersideGrokImagineImageQualityEditNode,
     "SupersideGrokImagineImageV2EditNode": SupersideGrokImagineImageV2EditNode,
     "SupersideIdeogramUpscaleNode": SupersideIdeogramUpscaleNode,
@@ -233,6 +236,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideFluxProFillNode": "Superside FLUX.1 Pro Fill (dedicated inpaint)",
     "SupersideGeminiOmniFlashEditNode": "Superside Gemini Omni Flash Edit",
     "SupersideGPTImage2EditNode": "Superside GPT Image 2 Edit",
+    "SupersideGPTImage25SunburstEditNode": "Superside GPT Image 2.5 Sunburst Edit",
     "SupersideGrokImagineImageQualityEditNode": "Superside Grok Imagine Image Quality Edit",
     "SupersideGrokImagineImageV2EditNode": "Superside Grok Imagine Image v2 Edit",
     "SupersideIdeogramUpscaleNode": "Superside Ideogram Upscale",

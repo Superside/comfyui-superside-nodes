@@ -332,6 +332,10 @@ PRICES = {
         "token-billed: text $5.00/1M in and $10.00/1M out, image $8.00/1M in and $30.00/1M out; the quality parameter moves this a lot",
         TOKEN_BILLED,
     ),
+    "openai/gpt-image-2.5/sunburst/edit": _unpriced(
+        "token-billed: text $5.00/1M in and $10.00/1M out, image $8.00/1M in and $30.00/1M out; the quality parameter moves this a lot",
+        TOKEN_BILLED,
+    ),
     "google/gemini-omni-flash/edit": _unpriced(
         "token-billed: $1.875 per 1M input tokens, $21.875 per 1M output tokens",
         TOKEN_BILLED,
@@ -421,6 +425,7 @@ NODE_ENDPOINTS = {
     "SupersideFluxProFillNode": ["fal-ai/flux-pro/v1/fill"],
     "SupersideGeminiOmniFlashEditNode": ["google/gemini-omni-flash/edit"],
     "SupersideGPTImage2EditNode": ["openai/gpt-image-2/edit"],
+    "SupersideGPTImage25SunburstEditNode": ["openai/gpt-image-2.5/sunburst/edit"],
     "SupersideGrokImagineImageQualityEditNode": ["xai/grok-imagine-image/quality/edit"],
     "SupersideGrokImagineImageV2EditNode": ["xai/grok-imagine-image/v2.0/edit"],
     "SupersideIdeogramUpscaleNode": ["fal-ai/ideogram/upscale"],

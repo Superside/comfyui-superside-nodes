@@ -24,7 +24,14 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
     precise inpainting-style edits.
     """
 
+    # The fal endpoint. Declared here so a sibling model (a different
+    # gpt-image variant with the same input shape) can subclass this node and
+    # only override the endpoint plus whatever fields it adds.
+    ENDPOINT = "openai/gpt-image-2/edit"
+
     # One "size" control drives everything. Pick the SHAPE here:
+
+    QUALITY_OPTIONS = ["auto", "low", "medium", "high"]
     #   - "match input + resolution": keep the input image's aspect ratio, but
     #     scale it up to the chosen resolution (portrait stays portrait, sized 4K)
     #   - "match input (original)": let the model infer/keep the input's own size
@@ -137,7 +144,7 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                         "tooltip": "Only used when mask_mode is not 'off'. Mask convention is WHITE = edit this area, BLACK = keep. Turn ON if your mask is inverted (the area you want to change is black).",
                     },
                 ),
-                "quality": (["auto", "low", "medium", "high"], {"default": "high"}),
+                "quality": (cls.QUALITY_OPTIONS, {"default": "high"}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 4}),
                 "output_format": (["png", "jpeg", "webp"], {"default": "png"}),
                 "sync_mode": ("BOOLEAN", {"default": False}),
@@ -388,7 +395,7 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                 kwargs["_mask_gray"] = mask_gray
 
             arguments = self.prepare_arguments(client, prompt, **kwargs)
-            result = self.call_api(client, "openai/gpt-image-2/edit", arguments)
+            result = self.call_api(client, self.ENDPOINT, arguments)
 
             images = self.process_images(result)
             output = images[0]

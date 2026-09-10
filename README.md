@@ -76,7 +76,7 @@ Every fal-backed node reports what it costs, so a workflow can be priced before 
 
 The ledger is in memory only: it starts empty on every ComfyUI restart and nothing is written to disk.
 
-**What is and isn't priced.** 20 of the endpoints this package calls publish a per-call price, and those are computed exactly from the request and the response (output count, resolution, quality, megapixels, video seconds, training steps). The rest are billed by GPU-second (Florence-2, Juggernaut, Bria background replace) or by token consumption (GPT Image 2, Gemini Omni Flash, the AnyLLM routers), and fal publishes no per-call figure for them. Those calls are **counted and listed separately rather than guessed at**, so the reported total is always a real lower bound and never silently wrong:
+**What is and isn't priced.** 20 of the endpoints this package calls publish a per-call price, and those are computed exactly from the request and the response (output count, resolution, quality, megapixels, video seconds, training steps). The rest are billed by GPU-second (Florence-2, Juggernaut, Bria background replace) or by token consumption (GPT Image 2, GPT Image 2.5 Sunburst, Gemini Omni Flash, the AnyLLM routers), and fal publishes no per-call figure for them. Those calls are **counted and listed separately rather than guessed at**, so the reported total is always a real lower bound and never silently wrong:
 
 ```
 TOTAL        4 priced call(s)                       $0.4870 USD
@@ -142,6 +142,14 @@ Same family as Pro, with extra controls: seed, safety tolerance, web search grou
 OpenAI GPT Image 2 editing with mask-based inpainting. Sizing is driven by a single `size` control. Default `match input + resolution` keeps the input image's own aspect ratio (a tall portrait stays tall) and scales it to the chosen `resolution` - so you just pick 4K for the biggest output without knowing the exact ratio. Other options: `match input (original)` (keep the input's size), a fixed aspect ratio, or `custom pixels`. GPT Image 2 caps total output to ~8 MP, so 4K gives ~3840 px on the long edge at 16:9 (true UHD), ~2880 at 1:1; a portrait input scales to ~2528x3264. Uses fal's queued execution path internally (polls until complete).
 Masking is controlled by a single `mask_mode`: `off - edit whole image` (default; ignores `mask_image`, for crop-stitch pipelines where a separate node masks), `guide model (soft)` (sends the mask so GPT focuses edits on the white area), or `lock outside mask (hard)` (also composites the result back only inside the mask so everything outside stays pixel-identical - best for standalone inpainting). `invert_mask` flips the white=edit convention.
 - **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`-`image_6`, `mask_image`, `size` (`match input + resolution` / `match input (original)` / aspect ratio / `custom pixels`), `resolution` (1K/2K/4K, used with `match input + resolution` or an aspect ratio), `width`/`height` (used with `custom pixels`, multiples of 16), `mask_mode` (off / soft / hard), `invert_mask`, `quality` (auto/low/medium/high), `num_images`, `output_format`, `sync_mode`
+- **Outputs:** `images` (IMAGE), `info` (STRING)
+
+#### GPT Image 2.5 Sunburst Edit (`SupersideGPTImage25SunburstEditNode`)
+OpenAI GPT Image 2.5 Sunburst editing (`openai/gpt-image-2.5/sunburst/edit`). Same input shape and the same single `size` / `mask_mode` controls as GPT Image 2 Edit above - it subclasses that node - plus two fields of its own and a wider quality range.
+`quality` adds `xhigh` and `max` on top of auto/low/medium/high. Billing is per token and climbs steeply with quality, so `high` stays the default; treat `xhigh` and `max` as deliberate choices.
+`background` (auto/transparent/opaque) needs `output_format` png or webp for transparency. `output_compression` (0-100, 0 = leave it to the API) applies to jpeg and webp only.
+Because the endpoint takes a real `mask_url`, `mask_mode` `lock outside mask (hard)` gives a genuine masked inpaint here - the model is told which pixels it may touch, and the result is composited back inside the mask.
+- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`-`image_6`, `mask_image`, `size`, `resolution`, `width`/`height`, `mask_mode` (off / soft / hard), `invert_mask`, `quality` (auto/low/medium/high/xhigh/max), `num_images`, `output_format`, `sync_mode`, `background`, `output_compression`
 - **Outputs:** `images` (IMAGE), `info` (STRING)
 
 #### Grok Imagine Image Quality Edit (`SupersideGrokImagineImageQualityEditNode`)
