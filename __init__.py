@@ -59,6 +59,10 @@ try:
     from .modules.grow_mask_with_blur_node import SupersideGrowMaskWithBlurNode
     from .modules.cut_by_mask_node import SupersideCutByMaskNode
     from .modules.combine_prompt_node import SupersideCombinePromptNode
+    from .modules.prompt_variants_node import (
+        SupersidePromptSlotsNode,
+        SupersidePromptVariantsNode,
+    )
     from .modules.image_compare_node import SupersideImageCompareNode, SupersideImageComparerNode
     from .modules.load_images_from_folder_node import SupersideLoadImagesFromFolderNode
     from .modules.text_preview_node import SupersideTextPreviewNode
@@ -136,6 +140,10 @@ except ImportError:
     from modules.grow_mask_with_blur_node import SupersideGrowMaskWithBlurNode
     from modules.cut_by_mask_node import SupersideCutByMaskNode
     from modules.combine_prompt_node import SupersideCombinePromptNode
+    from modules.prompt_variants_node import (
+        SupersidePromptSlotsNode,
+        SupersidePromptVariantsNode,
+    )
     from modules.image_compare_node import SupersideImageCompareNode, SupersideImageComparerNode
     from modules.load_images_from_folder_node import SupersideLoadImagesFromFolderNode
     from modules.text_preview_node import SupersideTextPreviewNode
@@ -206,6 +214,8 @@ NODE_CLASS_MAPPINGS = {
     "SupersideGrowMaskWithBlurNode": SupersideGrowMaskWithBlurNode,
     "SupersideCutByMaskNode": SupersideCutByMaskNode,
     "SupersideCombinePromptNode": SupersideCombinePromptNode,
+    "SupersidePromptVariantsNode": SupersidePromptVariantsNode,
+    "SupersidePromptSlotsNode": SupersidePromptSlotsNode,
     "SupersideImageCompareNode": SupersideImageCompareNode,
     "SupersideImageComparerNode": SupersideImageComparerNode,
     "SupersideLoadImagesFromFolderNode": SupersideLoadImagesFromFolderNode,
@@ -278,6 +288,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideGrowMaskWithBlurNode": "Superside Grow Mask With Blur",
     "SupersideCutByMaskNode": "Superside Cut By Mask",
     "SupersideCombinePromptNode": "Superside Combine Prompt",
+    "SupersidePromptVariantsNode": "Superside Prompt Variants",
+    "SupersidePromptSlotsNode": "Superside Prompt Slots",
     "SupersideImageCompareNode": "Superside Image Compare",
     "SupersideImageComparerNode": "Superside Image Comparer",
     "SupersideLoadImagesFromFolderNode": "Superside Load Images From Folder",
