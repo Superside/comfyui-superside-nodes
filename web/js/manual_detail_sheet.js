@@ -391,10 +391,19 @@ app.registerExtension({
             }
 
             node._sdsRender = render;
-            node._sdsSetBoxes = (newBoxes) => {
+            // A box's width is derived from its height and the image's aspect
+            // ratio, so re-squaring before the real image is known rewrites
+            // every saved width against the 1.5 fallback - and syncWidget then
+            // persists that. That is why boxes came back moved after a reload.
+            // Restoring keeps the stored geometry verbatim; the first
+            // authoritative image load re-squares it, and only a real edit
+            // writes back.
+            node._sdsSetBoxes = (newBoxes, { resquare = true } = {}) => {
                 boxes = newBoxes;
-                resquareAll();
-                syncWidget();
+                if (resquare) {
+                    resquareAll();
+                    syncWidget();
+                }
                 render();
             };
 
@@ -548,10 +557,14 @@ app.registerExtension({
                 imgLoaded = false;
                 img.onload = () => {
                     imgLoaded = true;
-                    // Now that the true image aspect ratio is known, rebuild
-                    // the boxes as real pixel-squares.
-                    resquareAll();
-                    syncWidget();
+                    // Only the image this node is actually handed may re-derive
+                    // the box widths. A stand-in from further upstream can have
+                    // a different aspect ratio - squaring against it would move
+                    // the saved boxes and, through syncWidget, persist the move.
+                    if (!standingIn) {
+                        resquareAll();
+                        syncWidget();
+                    }
                     render();
                 };
                 img.src = url;
@@ -620,7 +633,7 @@ app.registerExtension({
                     if (Array.isArray(parsed?.boxes) && parsed.boxes.length === MAX_BOXES) {
                         const current = JSON.stringify({ boxes });
                         if (boxesWidget.value !== current) {
-                            node._sdsSetBoxes?.(parsed.boxes);
+                            node._sdsSetBoxes?.(parsed.boxes, { resquare: false });
                         }
                     }
                 } catch (e) {
@@ -692,7 +705,11 @@ app.registerExtension({
                     // fall through to defaults
                 }
             }
-            this._sdsSetBoxes?.(restored || defaultBoxes());
+            if (restored) {
+                this._sdsSetBoxes?.(restored, { resquare: false });
+            } else {
+                this._sdsSetBoxes?.(defaultBoxes());
+            }
 
             // Bring back the exact image the node was handed on its last run.
             // If that temp file is gone (server restarted), the upstream poll
