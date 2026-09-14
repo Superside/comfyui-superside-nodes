@@ -212,12 +212,18 @@ class ImageProcessingMixin:
 
     # A returned size that quietly differs from the one asked for is worse than
     # an error: a 3712x4608 source once came back at 736x896 and nothing said
-    # so. When the request carried explicit dimensions, hold the API to them.
+    # so. When the request carried explicit dimensions, check what came back.
     #
-    # An aspect change is never acceptable - it means the picture was reframed.
-    # A smaller area is, up to a point: the endpoint clamps to its own megapixel
-    # budget while preserving the aspect, which is how a 4K request on a tall
-    # portrait legitimately lands at ~8 MP.
+    # The two cases are not equally wrong, and they are reported differently.
+    #
+    # A changed ASPECT RATIO means the picture was reframed rather than resized,
+    # and no caller wants that - it raises.
+    #
+    # A smaller AREA only warns. Some pipelines are built to tolerate it: the
+    # Z-Image skin pass deliberately generates below the source resolution and
+    # has Resize To Match put it back afterwards, so raising there would break a
+    # working graph to report something it already handles. The warning is what
+    # makes a real collapse visible; it is deliberately not fatal.
     # 4%, not 2%: rounding a small image to multiples of 16 moves the aspect by
     # about 2% on its own, so a tighter bound raises on legitimate rounding. A
     # real reframe (4:5 answered as 1:1) drifts 24% and is still caught, and the
@@ -247,12 +253,13 @@ class ImageProcessingMixin:
                 .format(self.ENDPOINT, got_w, got_h, got_aspect, want_w, want_h, want_aspect)
             )
         if area_ratio < self.MIN_AREA_RATIO:
-            raise ValueError(
-                "{} returned {}x{} for a request of {}x{} - {:.0f}% of the pixels asked for. "
-                "Lower the resolution setting if that is intended."
-                .format(self.ENDPOINT, got_w, got_h, want_w, want_h, area_ratio * 100)
+            logger.warning(
+                "%s returned %sx%s for a request of %sx%s - %.0f%% of the pixels asked for. "
+                "If you meant to keep the resolution, check the size setting: an 'auto' or "
+                "preset value hands the choice to the model.",
+                self.ENDPOINT, got_w, got_h, want_w, want_h, area_ratio * 100,
             )
-        if area_ratio < 0.95:
+        elif area_ratio < 0.95:
             logger.info(
                 "%s clamped %sx%s to %sx%s (%.0f%% of the requested pixels, aspect kept)",
                 self.ENDPOINT, want_w, want_h, got_w, got_h, area_ratio * 100,
