@@ -197,6 +197,9 @@ app.registerExtension({
             const img = new Image();
             let imgLoaded = false;
             let lastSrc = null;
+            // True while what is on screen is a stand-in found further up the
+            // chain rather than the image this node is actually handed.
+            let standingIn = false;
 
             // Image width/height ratio - drives square boxes. Falls back to
             // 1.5 until the real image loads.
@@ -214,17 +217,41 @@ app.registerExtension({
                 );
             }
 
+            // The node feeding this one is often a compute node - Normalize
+            // Product, a resize - which carries no thumbnail of its own, so
+            // looking only at the direct input leaves the widget blank until
+            // the graph is run, and blank again on every reload. Walk back
+            // through those until something with a thumbnail turns up, which in
+            // practice is the LoadImage at the head of the chain.
+            //
+            // Returns {src, standIn}. standIn is true whenever the image came
+            // from further up than the direct input, because a node in between
+            // may pad or reframe it: good enough to place boxes against, not
+            // the exact framing this node receives.
+            const MAX_UPSTREAM_HOPS = 8;
+
+            function imageInputLink(n) {
+                const inputs = n?.inputs || [];
+                const idx = inputs.findIndex((i) => i.name === "image");
+                const input = idx === -1 ? inputs.find((i) => i.type === "IMAGE") : inputs[idx];
+                return input?.link != null ? input.link : null;
+            }
+
             function getUpstreamImageSrc() {
-                const inputIndex = node.inputs?.findIndex((i) => i.name === "image");
-                if (inputIndex == null || inputIndex === -1) return null;
-                const input = node.inputs[inputIndex];
-                if (!input || input.link == null) return null;
-                const link = node.graph?.links?.[input.link];
-                if (!link) return null;
-                const srcNode = node.graph.getNodeById(link.origin_id);
-                if (!srcNode) return null;
-                if (srcNode.imgs && srcNode.imgs.length > 0) {
-                    return srcNode.imgs[0].src;
+                let current = node;
+                const seen = new Set();
+                for (let hop = 0; hop < MAX_UPSTREAM_HOPS; hop++) {
+                    const linkId = imageInputLink(current);
+                    if (linkId == null) return null;
+                    const link = node.graph?.links?.[linkId];
+                    if (!link) return null;
+                    const srcNode = node.graph.getNodeById(link.origin_id);
+                    if (!srcNode || seen.has(srcNode.id)) return null;
+                    seen.add(srcNode.id);
+                    if (srcNode.imgs && srcNode.imgs.length > 0) {
+                        return { src: srcNode.imgs[0].src, standIn: hop > 0 };
+                    }
+                    current = srcNode;
                 }
                 return null;
             }
@@ -252,6 +279,19 @@ app.registerExtension({
 
                 if (imgLoaded) {
                     ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+                    if (standingIn) {
+                        // Say so, rather than let a padded or reframed stand-in
+                        // pass for the framing the node will actually crop.
+                        // Top-left: the bottom edge already carries the
+                        // drag/scroll hint.
+                        const note = "upstream preview - run once for the exact framing";
+                        ctx.font = "11px sans-serif";
+                        const w = ctx.measureText(note).width + 10;
+                        ctx.fillStyle = "rgba(0,0,0,0.6)";
+                        ctx.fillRect(0, 0, w, 17);
+                        ctx.fillStyle = "#e2aa6e";
+                        ctx.fillText(note, 5, 12);
+                    }
                 } else {
                     ctx.fillStyle = "#222";
                     ctx.fillRect(0, 0, displayWidth, displayHeight);
@@ -492,9 +532,19 @@ app.registerExtension({
             // swallow the wheel before we see it.
             window.addEventListener("wheel", onWheel, { passive: false, capture: true });
 
-            function loadSrc(url) {
-                if (!url || url === lastSrc) return;
+            function loadSrc(url, standIn = false) {
+                if (!url) return;
+                if (url === lastSrc) {
+                    // Same picture, but it may have been promoted from a
+                    // stand-in to the real thing by a run.
+                    if (standingIn !== standIn) {
+                        standingIn = standIn;
+                        render();
+                    }
+                    return;
+                }
                 lastSrc = url;
+                standingIn = standIn;
                 imgLoaded = false;
                 img.onload = () => {
                     imgLoaded = true;
@@ -525,10 +575,15 @@ app.registerExtension({
             const pollInterval = setInterval(() => {
                 const up = getUpstreamImageSrc();
                 if (up) {
-                    loadSrc(up);
+                    // Once a run has handed us the exact image, a stand-in from
+                    // upstream must not take its place.
+                    if (!(up.standIn && lastSrc && !standingIn)) {
+                        loadSrc(up.src, up.standIn);
+                    }
                 } else if (!inputConnected() && lastSrc) {
                     lastSrc = null;
                     imgLoaded = false;
+                    standingIn = false;
                     render();
                 }
             }, 500);
@@ -604,7 +659,13 @@ app.registerExtension({
                     "/view?filename=" + encodeURIComponent(info.filename) +
                     "&type=" + encodeURIComponent(info.type || "temp") +
                     "&subfolder=" + encodeURIComponent(info.subfolder || "");
-                this._sdsLoadSrc?.(url);
+                // Remembered on the node so reloading the workflow brings the
+                // exact framing back instead of dropping to a stand-in. The
+                // file lives in ComfyUI's temp dir, so it survives a reload but
+                // not a server restart - onConfigure falls back if it 404s.
+                this.properties = this.properties || {};
+                this.properties.sdsPreviewSrc = url;
+                this._sdsLoadSrc?.(url, false);
             }
             return result;
         };
@@ -632,6 +693,16 @@ app.registerExtension({
                 }
             }
             this._sdsSetBoxes?.(restored || defaultBoxes());
+
+            // Bring back the exact image the node was handed on its last run.
+            // If that temp file is gone (server restarted), the upstream poll
+            // puts a stand-in there instead, which is still better than blank.
+            const remembered = this.properties?.sdsPreviewSrc;
+            if (remembered) {
+                const probe = new Image();
+                probe.onload = () => this._sdsLoadSrc?.(remembered, false);
+                probe.src = remembered;
+            }
             return result;
         };
     },
