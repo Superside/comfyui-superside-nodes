@@ -214,54 +214,6 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
             "height": self._round_to_multiple_of_16(height),
         }
 
-    # A returned size that quietly differs from the one asked for is worse than
-    # an error: a 3712x4608 source once came back at 736x896 and nothing said
-    # so. When the request carried explicit dimensions, hold the API to them.
-    #
-    # An aspect change is never acceptable - it means the picture was reframed.
-    # A smaller area is, up to a point: the endpoint clamps to its own megapixel
-    # budget while preserving the aspect, which is how a 4K request on a tall
-    # portrait legitimately lands at ~8 MP.
-    # 4%, not 2%: rounding a small image to multiples of 16 moves the aspect by
-    # about 2% on its own, so a tighter bound raises on legitimate rounding. A
-    # real reframe (4:5 answered as 1:1) drifts 24% and is still caught, and the
-    # area check is what catches a collapse that kept its shape.
-    ASPECT_TOLERANCE = 0.04
-    MIN_AREA_RATIO = 0.5
-
-    def _check_returned_size(self, requested, output):
-        if not isinstance(requested, dict):
-            return                       # "auto": the model chose, nothing to hold it to
-        want_w, want_h = requested.get("width"), requested.get("height")
-        if not want_w or not want_h:
-            return
-        try:
-            got_h, got_w = int(output.shape[-3]), int(output.shape[-2])
-        except Exception:
-            return
-
-        want_aspect, got_aspect = want_w / want_h, got_w / got_h
-        drift = abs(got_aspect - want_aspect) / want_aspect
-        area_ratio = (got_w * got_h) / float(want_w * want_h)
-
-        if drift > self.ASPECT_TOLERANCE:
-            raise ValueError(
-                "{} returned {}x{} (aspect {:.4f}) for a request of {}x{} (aspect {:.4f}). "
-                "The aspect ratio changed, so the image was reframed rather than resized."
-                .format(self.ENDPOINT, got_w, got_h, got_aspect, want_w, want_h, want_aspect)
-            )
-        if area_ratio < self.MIN_AREA_RATIO:
-            raise ValueError(
-                "{} returned {}x{} for a request of {}x{} - {:.0f}% of the pixels asked for. "
-                "Lower the resolution setting if that is intended."
-                .format(self.ENDPOINT, got_w, got_h, want_w, want_h, area_ratio * 100)
-            )
-        if area_ratio < 0.95:
-            logger.info(
-                "%s clamped %sx%s to %sx%s (%.0f%% of the requested pixels, aspect kept)",
-                self.ENDPOINT, want_w, want_h, got_w, got_h, area_ratio * 100,
-            )
-
     def _resolve_image_size(self, **kwargs):
         """
         Turn the single `size` control into the API's image_size value:

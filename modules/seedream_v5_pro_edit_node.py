@@ -59,7 +59,7 @@ class SupersideSeedreamV5ProEditNode(
                     ["preset", "custom"],
                     {"default": "preset"},
                 ),
-                "image_size": (cls.IMAGE_SIZE_OPTIONS, {"default": "auto_2K"}),
+                "image_size": (cls.IMAGE_SIZE_OPTIONS, {"default": "auto_2K", "tooltip": "fal's size presets. 'auto_2K' / 'auto_4K' keep the input's aspect ratio and target that resolution; the named presets impose their own shape. For an exact size use size_mode 'custom' with width/height - only that path is checked against what comes back."}),
                 "width": (
                     "INT",
                     {
@@ -153,6 +153,7 @@ class SupersideSeedreamV5ProEditNode(
             result = self.call_api(client, "bytedance/seedream/v5/pro/edit", arguments)
 
             images = self.process_images(result)
+            self._check_returned_size(arguments.get("image_size"), images[0])
             info = ""
             if result.get("images") and isinstance(result["images"], list):
                 info = result["images"][0].get("url", "")

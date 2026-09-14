@@ -116,7 +116,7 @@ class SupersideZImageInpaintLoraNode(
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 4}),
                 "image_size": (
                     ["auto", "square_hd", "square", "portrait_4_3", "portrait_16_9", "landscape_4_3", "landscape_16_9"],
-                    {"default": "auto", "tooltip": "\"auto\" keeps the input image's own size/aspect ratio."},
+                    {"default": "auto", "tooltip": "fal's own size presets. \"auto\" lets fal choose - it does NOT keep the input's size, and fal's auto/enum presets land around a 512 px short side. Only used when match_input_resolution is off; leave that on to generate at the input's own resolution."},
                 ),
                 "control_scale": (
                     "FLOAT",
@@ -272,6 +272,7 @@ class SupersideZImageInpaintLoraNode(
             result = self.call_api(client, "fal-ai/z-image/turbo/inpaint/lora", arguments)
 
             images = self.process_images(result)
+            self._check_returned_size(resolved_image_size, images[0])
 
             first_url = ""
             if isinstance(result.get("images"), list) and result["images"]:
