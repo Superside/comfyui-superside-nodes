@@ -95,7 +95,7 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                     cls.SIZE_OPTIONS,
                     {
                         "default": "match input + resolution",
-                        "tooltip": "Output shape. 'match input + resolution' keeps your image's aspect (portrait stays portrait) and scales it to 'resolution' below - just pick 4K for the biggest. 'match input (original)' keeps the input's own size. Or pick a fixed aspect ratio / 'custom pixels'.",
+                        "tooltip": "Output shape. 'match input + resolution' keeps your image's aspect (portrait stays portrait) and scales it to 'resolution' below - just pick 4K for the biggest. 'match input (original)' sends size=auto and lets the model choose - it does NOT guarantee your input's size and can come back far smaller, so use it only when you want the model to decide. Or pick a fixed aspect ratio / 'custom pixels'.",
                     },
                 ),
                 "resolution": (
@@ -218,7 +218,9 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
         """
         Turn the single `size` control into the API's image_size value:
           - "match input + resolution"     -> {width,height} from input aspect + resolution
-          - "match input (original)"/None   -> "auto" (model keeps the input's size)
+          - "match input (original)"/None   -> "auto": the model picks the size. It is
+            not a guarantee of the input's size - a 3712x4608 input has come back at
+            736x896. Use "match input + resolution" to hold the resolution.
           - an aspect ratio ("16:9", ...)  -> {width,height} from ratio + resolution
           - "custom pixels"                -> {width,height} from the width/height fields
         A legacy bridge keeps old workflows saved with `size_mode` working.
@@ -241,7 +243,9 @@ class SupersideGPTImage2EditNode(SupersideFalNode, ImageProcessingMixin, APIClie
                 kwargs.get("image_1"), kwargs.get("resolution", "2K")
             )
 
-        # "match input (original)", the old "match input (auto)", or None -> auto
+        # "match input (original)", the old "match input (auto)", or None -> "auto".
+        # "auto" hands the decision to the model, which is not the same as keeping the
+        # input's size; the name is kept for workflows already saved with it.
         if size is None or size in ("match input (original)", "match input (auto)"):
             return "auto"
 
