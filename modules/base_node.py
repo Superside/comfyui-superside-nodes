@@ -35,6 +35,7 @@ API_KEY_INPUT_SPEC = (
 # resilient for endpoints that commonly take several minutes.
 QUEUED_ENDPOINTS = {
     "openai/gpt-image-2/edit",
+    "openai/gpt-image-2.5/sunburst/edit",
     "bytedance/seedream/v5/pro/edit",
     "bytedance/seedream/v4.5/edit",
     "google/gemini-omni-flash/edit",
@@ -343,6 +344,13 @@ class APIClientMixin:
         "internal server error",
         "connection reset",
         "read timeout",
+        # A long generation can outlive fal's edge connection. The synchronous
+        # path surfaces that as a disconnect with no response - transport, not
+        # a bad request, so it is worth retrying.
+        "server disconnected",
+        "connection aborted",
+        "remote end closed connection",
+        "incompleteread",
     )
     # Backoff schedule (seconds) between retries on transient errors.
     RETRY_BACKOFF = (5, 15, 30)
