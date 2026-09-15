@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+import re
 import time
 
 import fal_client
@@ -14,6 +15,38 @@ from PIL import Image
 from . import fal_cost_ledger
 
 logger = logging.getLogger(__name__)
+
+
+class _QueuePollFilter(logging.Filter):
+    """Drop httpx's log line for each "still queued" poll.
+
+    fal's queued endpoints are polled about six times a second, and httpx logs
+    every poll at INFO. A two-minute call buries the run in ~700 identical
+    lines, which is how a real error ends up scrolled off the screen. The
+    polling is how queued endpoints work and stays exactly as it is; only the
+    line for a poll that answered 202 (still in the queue) is dropped. The
+    final 202 -> 200 transition, the GET that fetches the result, the POST that
+    started the call, and anything that failed all still get logged.
+    """
+
+    _STILL_QUEUED = re.compile(
+        r"GET https://queue\.fal\.run/\S+/status.*\"HTTP/[\d.]+ 202"
+    )
+
+    def filter(self, record):
+        try:
+            return not self._STILL_QUEUED.search(record.getMessage())
+        except Exception:
+            return True          # never let logging break a generation
+
+
+def _install_queue_poll_filter():
+    httpx_logger = logging.getLogger("httpx")
+    if not any(isinstance(f, _QueuePollFilter) for f in httpx_logger.filters):
+        httpx_logger.addFilter(_QueuePollFilter())
+
+
+_install_queue_poll_filter()
 
 
 # Shared INPUT_TYPES entry for the required api_key STRING input. Every node
