@@ -269,10 +269,11 @@ class SupersideZImageInpaintLoraNode(
             if seed is not None and int(seed) != -1:
                 arguments["seed"] = int(seed)
 
-            result = self.call_api(client, "fal-ai/z-image/turbo/inpaint/lora", arguments)
+            endpoint = "fal-ai/z-image/turbo/inpaint/lora"
+            result = self.call_api(client, endpoint, arguments)
 
             images = self.process_images(result)
-            self._check_returned_size(resolved_image_size, images[0])
+            self._check_returned_size(resolved_image_size, images[0], endpoint)
 
             first_url = ""
             if isinstance(result.get("images"), list) and result["images"]:

@@ -155,10 +155,11 @@ class SupersideSeedreamV45EditNode(
         try:
             client = self.get_client(api_key)
             arguments = self.prepare_arguments(client, prompt, **kwargs)
-            result = self.call_api(client, "fal-ai/bytedance/seedream/v4.5/edit", arguments)
+            endpoint = "fal-ai/bytedance/seedream/v4.5/edit"
+            result = self.call_api(client, endpoint, arguments)
 
             images = self.process_images(result)
-            self._check_returned_size(arguments.get("image_size"), images[0])
+            self._check_returned_size(arguments.get("image_size"), images[0], endpoint)
             info = ""
             if result.get("images") and isinstance(result["images"], list):
                 info = result["images"][0].get("url", "")

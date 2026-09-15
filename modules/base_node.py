@@ -232,7 +232,13 @@ class ImageProcessingMixin:
     ASPECT_TOLERANCE = 0.04
     MIN_AREA_RATIO = 0.5
 
-    def _check_returned_size(self, requested, output):
+    def _check_returned_size(self, requested, output, endpoint=None):
+        # The endpoint is a parameter, not self.ENDPOINT: only the GPT Image
+        # node carries it as a class attribute, and reaching for it on the
+        # others raised AttributeError from inside the guard - turning a
+        # non-fatal warning into a dead graph. The fallbacks mean a caller that
+        # forgets to pass it still gets a usable name instead of a crash.
+        label = endpoint or getattr(self, "ENDPOINT", None) or type(self).__name__
         if not isinstance(requested, dict):
             return                       # "auto": the model chose, nothing to hold it to
         want_w, want_h = requested.get("width"), requested.get("height")
@@ -251,19 +257,19 @@ class ImageProcessingMixin:
             raise ValueError(
                 "{} returned {}x{} (aspect {:.4f}) for a request of {}x{} (aspect {:.4f}). "
                 "The aspect ratio changed, so the image was reframed rather than resized."
-                .format(self.ENDPOINT, got_w, got_h, got_aspect, want_w, want_h, want_aspect)
+                .format(label, got_w, got_h, got_aspect, want_w, want_h, want_aspect)
             )
         if area_ratio < self.MIN_AREA_RATIO:
             logger.warning(
                 "%s returned %sx%s for a request of %sx%s - %.0f%% of the pixels asked for. "
                 "If you meant to keep the resolution, check the size setting: an 'auto' or "
                 "preset value hands the choice to the model.",
-                self.ENDPOINT, got_w, got_h, want_w, want_h, area_ratio * 100,
+                label, got_w, got_h, want_w, want_h, area_ratio * 100,
             )
         elif area_ratio < 0.95:
             logger.info(
                 "%s clamped %sx%s to %sx%s (%.0f%% of the requested pixels, aspect kept)",
-                self.ENDPOINT, want_w, want_h, got_w, got_h, area_ratio * 100,
+                label, want_w, want_h, got_w, got_h, area_ratio * 100,
             )
 
 
