@@ -42,6 +42,25 @@ VIEW_SLOTS = (
     ("three_quarter_additional", "3/4 ADDITIONAL"),
 )
 
+# The bridge and the temple-to-front joint sit in the same place on any pair of
+# glasses, so they are cut from the product box rather than detected. That is not
+# a shortcut: asked to ground "the bridge between the two lenses", Florence
+# returned the whole frame on 3 of 5 frames (1806x643 out of a 2400x1200 photo on
+# one), because a bridge is part of a continuous structure with no edge of its
+# own. The same fractions were right on 5 of 5. The logo is the opposite case -
+# its position moves by brand, so that one is detected.
+# Fractions of the product box: (x1, y1, x2, y2).
+# The joint region is right on 10 of 11 frames. It misses on wrap-around sports
+# frames (an Oakley Sutro, a Flak), whose temple sits further back than the outer
+# corner, so the crop lands on lens. Sliding the window inward by edge density
+# was tried and rejected: a hinge is edge dense, but so is the bridge - more so,
+# between nose pads, screws and pad arms - so the window drifted to the bridge
+# and made two frames that had been right worse. Bounding the slide to the outer
+# third did not stop the drift. The fixed fraction beat both, so a wrap frame is
+# handled by overriding that slot through detail_boxes instead.
+BRIDGE_REGION = (0.37, 0.00, 0.63, 0.72)
+JOINT_REGION = (0.00, 0.00, 0.26, 0.62)
+
 # Fonts are looked up by name so the sheet still renders on a machine that has
 # none of them; PIL's default bitmap font is the last resort.
 _FONT_CANDIDATES = ("segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf")
@@ -113,6 +132,18 @@ class SupersideSkuReferenceSheetNode:
                                "connected views; x1..y2 are 0-1 fractions of that view's "
                                "product box. Leave empty for no hand-picked details.",
                 }),
+                "auto_bridge": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Put a close-up of the bridge in the DETAILS strip, cut from "
+                               "the centre of the front view. No API call - the bridge is in "
+                               "the same place on every frame.",
+                }),
+                "auto_joint": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Put a close-up of the joint between the lateral support and "
+                               "the front in the DETAILS strip, cut from the outer upper "
+                               "corner of a three-quarter view (or the side view). No API call.",
+                }),
                 "auto_logo": ("BOOLEAN", {
                     "default": False,
                     "tooltip": "Find the brand logo and put it first in the DETAILS strip. "
@@ -183,17 +214,23 @@ class SupersideSkuReferenceSheetNode:
             except Exception as exc:
                 logger.info("SKU sheet: no logo candidate on %s (%s)", label, exc)
                 continue
+            # Clamp to the view: an unclamped pad runs off the edge on a logo
+            # near the border and PIL returns the crop silently truncated.
             pad = int(max(cw, ch) * 0.6)
-            candidates.append((label, img.crop((cx - cw // 2 - pad, cy - ch // 2 - pad,
-                                                cx + cw // 2 + pad, cy + ch // 2 + pad))))
+            box = (max(0, cx - cw // 2 - pad), max(0, cy - ch // 2 - pad),
+                   min(img.width, cx + cw // 2 + pad), min(img.height, cy + ch // 2 + pad))
+            candidates.append((label, img.crop(box)))
         if not candidates:
             return None
 
         system = (
             "You are shown numbered close-up crops taken from photographs of one pair of "
             "eyewear. Exactly one of them, or none, carries the brand's own logo - a word "
-            "or an emblem applied to the product. Reply with one line: the number of that "
-            "crop, then a colon, then the word you can read, or the shape of the emblem. "
+            "or an emblem applied to an outward-facing surface. Printing on an inner temple "
+            "surface is not a brand mark, and neither is a size or fit marking such as "
+            "'52 18 140' or a colour code - those are specification text, and a crop showing "
+            "only those is a 'none'. Reply with one line: the number of the crop carrying the "
+            "brand mark, then a colon, then the word you can read, or the shape of the emblem. "
             "Reply '0: none' when no crop carries a brand mark. No other text."
         )
         try:
@@ -221,7 +258,8 @@ class SupersideSkuReferenceSheetNode:
 
     def build_sheet(self, front, side=None, three_quarter=None, three_quarter_additional=None,
                     max_long_side=5000, margin_percent=6.0, gap_px=14,
-                    background_threshold=12.0, detail_boxes="", auto_logo=False, api_key=""):
+                    background_threshold=12.0, detail_boxes="", auto_bridge=True,
+                    auto_joint=True, auto_logo=False, api_key=""):
         try:
             supplied = (front, side, three_quarter, three_quarter_additional)
             views = [(label, self._to_pil(img))
@@ -256,8 +294,8 @@ class SupersideSkuReferenceSheetNode:
                 ImageDraw.Draw(cell).text((margin, 6), label, fill=(122, 122, 128), font=_font(22))
                 return cell
 
-            details = self._collect_details(products, detail_boxes, auto_logo, api_key,
-                                            background_threshold)
+            details = self._collect_details(products, detail_boxes, auto_bridge, auto_joint,
+                                            auto_logo, api_key, background_threshold)
             blocks = [[panel(l, p) for l, p in r] for r in rows]
             strip_w = inner if len(products) == 4 else blocks[0][0].width
             strip = self._detail_strip(details, strip_w, gap, label_h) if details else None
@@ -300,8 +338,28 @@ class SupersideSkuReferenceSheetNode:
             logger.error("SKU reference sheet failed: %s", exc)
             raise RuntimeError("SKU reference sheet failed: %s" % exc) from exc
 
-    def _collect_details(self, products, detail_boxes, auto_logo, api_key, threshold):
+    def _region_crop(self, product, region, threshold):
+        x1, y1, x2, y2 = region
+        crop = product.crop((int(x1 * product.width), int(y1 * product.height),
+                             int(x2 * product.width), int(y2 * product.height)))
+        return crop.crop(self._product_box(crop, threshold))
+
+    def _collect_details(self, products, detail_boxes, auto_bridge, auto_joint,
+                         auto_logo, api_key, threshold):
         details = []
+        labels = [label for label, _p in products]
+
+        if auto_bridge:
+            details.append((self._region_crop(products[0][1], BRIDGE_REGION, threshold),
+                            "BRIDGE"))
+        if auto_joint:
+            # The joint reads on an angled view; head-on the temple is edge-on.
+            for wanted in ("3/4", "3/4 ADDITIONAL", "SIDE", "FRONT"):
+                if wanted in labels:
+                    product = products[labels.index(wanted)][1]
+                    details.append((self._region_crop(product, JOINT_REGION, threshold),
+                                    "JOINT"))
+                    break
         if auto_logo:
             if not api_key:
                 logger.warning("SKU sheet: auto_logo is on but api_key is empty; skipping "
@@ -336,14 +394,21 @@ class SupersideSkuReferenceSheetNode:
             details.append((crop, str(entry.get("caption", "DETAIL"))))
         return details
 
+    # A slot never grows past this, so one detail sits in a strip its own size
+    # instead of floating in the middle of a full-width band.
+    MAX_SLOT_W = 620
+
     def _detail_strip(self, details, width, gap, label_h):
         height = 340
+        top = label_h + 22
+        box_h = height - top - 18
+        slot_w = min(self.MAX_SLOT_W,
+                     (width - 4 * gap - gap * (len(details) - 1)) // len(details))
+        needed = 4 * gap + len(details) * slot_w + gap * (len(details) - 1)
+        width = min(width, needed)
         strip = Image.new("RGB", (width, height), (255, 255, 255))
         draw = ImageDraw.Draw(strip)
         draw.text((gap * 2, 6), "DETAILS", fill=(122, 122, 128), font=_font(22))
-        top = label_h + 22
-        box_h = height - top - 18
-        slot_w = (width - 4 * gap - gap * (len(details) - 1)) // len(details)
         for i, (crop, caption) in enumerate(details):
             fit = min(slot_w / crop.width, box_h / crop.height)
             w, h = max(1, int(crop.width * fit)), max(1, int(crop.height * fit))
