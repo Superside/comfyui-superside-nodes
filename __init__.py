@@ -31,6 +31,7 @@ try:
     from .modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
     from .modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
     from .modules.normalize_product_node import SupersideNormalizeProductNode
+    from .modules.sku_reference_sheet_node import SupersideSkuReferenceSheetNode
     from .modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from .modules.prompt_box_node import SupersidePromptBoxNode
     from .modules.prompt_splitter_node import SupersidePromptSplitterNode
@@ -112,6 +113,7 @@ except ImportError:
     from modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
     from modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
     from modules.normalize_product_node import SupersideNormalizeProductNode
+    from modules.sku_reference_sheet_node import SupersideSkuReferenceSheetNode
     from modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from modules.prompt_box_node import SupersidePromptBoxNode
     from modules.prompt_splitter_node import SupersidePromptSplitterNode
@@ -184,6 +186,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideNanoBananaProEditNode": SupersideNanoBananaProEditNode,
     "SupersideNanoBananaV2EditNode": SupersideNanoBananaV2EditNode,
     "SupersideNormalizeProductNode": SupersideNormalizeProductNode,
+    "SupersideSkuReferenceSheetNode": SupersideSkuReferenceSheetNode,
     "SupersidePASDUpscalerNode": SupersidePASDUpscalerNode,
     "SupersidePromptBoxNode": SupersidePromptBoxNode,
     "SupersidePromptSplitterNode": SupersidePromptSplitterNode,
@@ -258,6 +261,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideNanoBananaProEditNode": "Superside Nano Banana Pro Edit Node",
     "SupersideNanoBananaV2EditNode": "Superside Nano Banana V2 Edit Node",
     "SupersideNormalizeProductNode": "Superside Normalize Product",
+    "SupersideSkuReferenceSheetNode": "Superside SKU Reference Sheet",
     "SupersidePASDUpscalerNode": "Superside PASD Upscaler Node",
     "SupersidePromptBoxNode": "Superside Prompt Box",
     "SupersidePromptSplitterNode": "Superside Prompt Splitter",

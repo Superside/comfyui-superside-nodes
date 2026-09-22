@@ -412,6 +412,15 @@ Places a catalogue product photo into a consistent frame so a fixed set of detai
 - **Inputs:** `image` · optional: `mode` (keep resolution (pad) / fixed canvas (scale), default keep resolution), `margin_percent` (default 8), `output_width` / `output_height` (fixed-canvas mode only, default 1024), `fit` (contain/width/height, fixed-canvas mode only), `background_hex` (empty = auto-match the photo's backdrop), `threshold` (product-vs-background sensitivity, default 12), `detect_pad_percent` (default 2)
 - **Outputs:** `image` (IMAGE, normalized), `info` (STRING, JSON with the detected bbox, sizes, and settings used)
 
+#### SKU Reference Sheet (`SupersideSkuReferenceSheetNode`)
+Lays three or four product views out on one sheet at a single shared scale, with a DETAILS strip of close-ups. Connect `front` plus any of `side` / `three_quarter` / `three_quarter_additional`; the layout follows how many are wired - with four views the DETAILS strip becomes a band between the two rows, with three it takes the cell the missing view leaves free. Dividers separate the panels so a downstream editing model reads them as separate photographs rather than one blended image.
+
+It replaces a chain of Normalize Product -> Manual Detail Sheet -> ImageStitch -> Resize, and the reason is not tidiness: that chain cannot hold one scale across the views. Each Normalize sizes its own canvas from its own product, and ImageStitch then matches edges by resizing a whole panel. Measured on one catalogue SKU the product was 2117 / 2105 / 2114 px wide across the three views - already consistent - but 754 / 808 / 891 px tall, so the canvases came out 897 / 961 / 1060 and the stitch rescaled them against each other. Seeing every view at once is what makes one pixels-per-unit possible, so a millimetre of frame is the same number of pixels in every panel.
+
+With `auto_logo` on, the first DETAILS slot finds the brand mark by itself: Florence-2 proposes one candidate per view and the vision model picks the one that actually carries a mark. The two steps are both needed - the logo sits in a different place on different brands (printed on the lens and readable only head-on for one, an emblem on the temple visible only at an angle for another), and Florence returns no confidence to choose by. If it finds nothing, or no `api_key` is set, the slot is left out and the sheet is still produced.
+- **Inputs:** `front` · optional: `side`, `three_quarter`, `three_quarter_additional`, `max_long_side` (default 5000), `margin_percent` (default 6), `gap_px` (divider width, default 14), `background_threshold` (default 12), `detail_boxes` (JSON list of `{view, x1, y1, x2, y2, caption}`, fractions of that view's product box), `auto_logo` (default OFF), `api_key` (only for `auto_logo`)
+- **Outputs:** `image` (IMAGE, the sheet), `info` (STRING, JSON with the views used, the shared scale, the detail captions and the final size)
+
 ### Image utilities (no API key needed)
 
 #### Resize To Match (`SupersideResizeToMatchNode`)
