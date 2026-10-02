@@ -311,6 +311,13 @@ Portrait/facial-detail-specialized upscaler (fal endpoint `fal-ai/crystal-upscal
 - **Inputs:** `image`, `api_key` · optional: `scale_factor` (1-4, default 2), `creativity` (0-1, how much the upscaler can invent vs. stay literal, default 0), `output_format` (png/jpg)
 - **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
 
+#### Ideogram V4.5 Edit (`SupersideIdeogramV45EditNode`)
+Edits an image with Ideogram V4.5 on fal (`ideogram/v4.5/edit`). Takes the image to edit plus up to three reference images, and the same `mask_mode` as the GPT Image nodes (off / soft / lock outside mask (hard)) with the same WHITE = edit convention - Ideogram reads BLACK as the editable area, so the mask is inverted on its way out and a graph can feed the same mask to either model. In `lock outside mask (hard)` the result is composited back inside the mask, as with the GPT nodes. Seeded, so a fixed seed reproduces a run.
+
+Measured against GPT Image 2.5 Sunburst on the same pipeline inputs (five eyewear cases, one run each): on repairing a detail Ideogram at quality `high` fixed 3/3 where Sunburst fixed 1/3, and it changed only the defect rather than redrawing the whole frame. On reshaping an outline it was 0/2 in every configuration - it holds the geometry it is given - where Sunburst was 2/2. Use it to correct detail, not to change a shape.
+- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`-`image_4` (references; at most three alongside a mask), `mask_image`, `mask_mode` (default off), `invert_mask`, `quality` (high/medium/low/turbo, default high), `edit_precision` (high/regular, default high), `seed` (-1 = service picks), `num_images`
+- **Outputs:** `images` (IMAGE), `info` (STRING)
+
 #### Ideogram Upscale (`SupersideIdeogramUpscaleNode`)
 Prompt-guided upscaling with resemblance/detail sliders.
 - **Inputs:** `image`, `api_key` · optional: `prompt`, `resemblance`, `detail`, `expand_prompt`, `seed`

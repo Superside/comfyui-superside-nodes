@@ -135,6 +135,17 @@ def _nano_banana_pro_edit(arguments, result):
     return usd, detail
 
 
+def _ideogram_v45_edit(arguments, result):
+    """Per image, and the rate depends on quality.
+
+    Figures measured on real calls: high $0.22, medium $0.06. Anything else is
+    charged at the medium rate here rather than guessed upward, and the fal
+    dashboard remains the authority.
+    """
+    rate = 0.22 if arguments.get("quality") == "high" else 0.06
+    return rate * max(1, _output_count(arguments, result))
+
+
 def _flat_per_request(rate):
     def estimator(arguments, result):
         return rate, "1 request @ ${:.4f}".format(rate)
@@ -361,6 +372,10 @@ PRICES = {
     "fal-ai/flux-pro/kontext/max/multi": _unpriced(
         "no published per-call price", NO_PUBLISHED_PRICE,
     ),
+    "ideogram/v4.5/edit": _priced(
+        "$0.22 per image at quality high, $0.06 at medium",
+        _ideogram_v45_edit,
+    ),
     "fal-ai/ideogram/upscale": _unpriced(
         "no published per-call price", NO_PUBLISHED_PRICE,
     ),
@@ -429,6 +444,7 @@ NODE_ENDPOINTS = {
     "SupersideGrokImagineImageQualityEditNode": ["xai/grok-imagine-image/quality/edit"],
     "SupersideGrokImagineImageV2EditNode": ["xai/grok-imagine-image/v2.0/edit"],
     "SupersideIdeogramUpscaleNode": ["fal-ai/ideogram/upscale"],
+    "SupersideIdeogramV45EditNode": ["ideogram/v4.5/edit"],
     "SupersideImageRetouchNode": ["fal-ai/image-editing/retouch"],
     "SupersideJuggernautFluxProImg2ImgNode": ["rundiffusion-fal/juggernaut-flux/pro/image-to-image"],
     "SupersideKling21ImageToVideoNode": [
