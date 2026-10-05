@@ -429,6 +429,22 @@ The DETAILS strip fills three slots on its own. `BRIDGE` and `JOINT` are cut fro
 - **Inputs:** `front` · optional: `side`, `three_quarter`, `three_quarter_additional`, `max_long_side` (default 5000), `margin_percent` (default 6), `gap_px` (divider width, default 14), `background_threshold` (default 12), `detail_boxes` (JSON list of `{view, x1, y1, x2, y2, caption}`, fractions of that view's product box), `auto_bridge` (default ON), `auto_joint` (default ON), `auto_logo` (default OFF), `api_key` (only for `auto_logo`)
 - **Outputs:** `image` (IMAGE, the sheet), `info` (STRING, JSON with the views used, the shared scale, the detail captions and the final size)
 
+#### Tile Upscale (`SupersideTileUpscaleNode`)
+> **Credit.** The tiling technique in this node - the method presets, the edge-aware feathering, the overlap colour matching and the crop/stitch geometry - is **Aaron Amortegui's**, from his own repository, which is the original and holds the rights to the approach: **https://github.com/amortegui84/comfyui-tile-upscale-AM**. That code is ported here unchanged and verified bit-identical against it (9 of 9 method x grid combinations, max difference 0.00). What is new here is only the packaging described below.
+
+Upscales an image in tiles through a single node: connect the image, paste the fal key, pick a model and a grid. Each tile goes to the model and the results are stitched back with the overlap, feathering and colour matching that model calls for.
+
+The original repository's published workflows wire five node types by hand - Tile Crop, one Tile Extract per tile, one upscaler per tile, Tile Collect, Tile Stitch - so the graph grows with the grid and a 3x3 needs nine of each; and the upscaler in those graphs is a local lanczos placeholder, so the model call was never in the graph at all. Here the fan-out is a loop, the model is a dropdown and the key has one home.
+
+fal bills per output megapixel per call and every tile is one call, so the overlap is paid for. `info` reports the finished size, the print size at 300 dpi and the billed megapixels; `preview_only` reads all three without sending anything.
+- **Inputs:** `image`, `model` (topaz / seedvr2 / crystal / nano banana 2 / gpt image 2 / none (local lanczos)), `tiles` (1x1 / 2x2 / 3x2 / 2x3 / 3x3), `scale` (default 2.0), `api_key` · optional: `prompt` (generative models only), `preview_only`, `overlap_percent` (-1 = what the model calls for), `timeout_seconds`
+- **Outputs:** `image` (IMAGE, stitched), `info` (STRING)
+
+#### Save Image With DPI (`SupersideSaveImageWithDPINode`)
+Also ported from [comfyui-tile-upscale-AM](https://github.com/amortegui84/comfyui-tile-upscale-AM) (Aaron Amortegui). Saves PNG, TIFF or JPEG with the DPI written into the file - the pHYs chunk for PNG, the resolution tags for TIFF, the JFIF fields for JPEG - and reports the print size it works out to. DPI is metadata: it tells a printer how big to render the pixels, it does not add any.
+- **Inputs:** `image`, `filename_prefix`, `dpi` (72 / 150 / 300 / 600), `format` (png / tiff / jpeg) · optional: `jpeg_quality`, `output_subfolder`
+- **Outputs:** `saved_path` (STRING), `print_size_info` (STRING)
+
 ### Image utilities (no API key needed)
 
 #### Resize To Match (`SupersideResizeToMatchNode`)
