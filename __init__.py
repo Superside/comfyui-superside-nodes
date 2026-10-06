@@ -31,6 +31,7 @@ try:
     from .modules.manual_detail_sheet_node import SupersideManualDetailSheetNode
     from .modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
     from .modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
+    from .modules.nano_banana_v21_edit_node import SupersideNanoBananaV21EditNode
     from .modules.normalize_product_node import SupersideNormalizeProductNode
     from .modules.sku_reference_sheet_node import SupersideSkuReferenceSheetNode
     from .modules.tile_upscale_node import (
@@ -118,6 +119,7 @@ except ImportError:
     from modules.manual_detail_sheet_node import SupersideManualDetailSheetNode
     from modules.nano_banana_pro_node import SupersideNanoBananaProEditNode
     from modules.nano_banana_v2_edit_node import SupersideNanoBananaV2EditNode
+    from modules.nano_banana_v21_edit_node import SupersideNanoBananaV21EditNode
     from modules.normalize_product_node import SupersideNormalizeProductNode
     from modules.sku_reference_sheet_node import SupersideSkuReferenceSheetNode
     from modules.tile_upscale_node import (
@@ -196,6 +198,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersideManualDetailSheetNode": SupersideManualDetailSheetNode,
     "SupersideNanoBananaProEditNode": SupersideNanoBananaProEditNode,
     "SupersideNanoBananaV2EditNode": SupersideNanoBananaV2EditNode,
+    "SupersideNanoBananaV21EditNode": SupersideNanoBananaV21EditNode,
     "SupersideNormalizeProductNode": SupersideNormalizeProductNode,
     "SupersideSkuReferenceSheetNode": SupersideSkuReferenceSheetNode,
     "SupersideTileUpscaleNode": SupersideTileUpscaleNode,
@@ -274,6 +277,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideManualDetailSheetNode": "Superside Manual Detail Sheet",
     "SupersideNanoBananaProEditNode": "Superside Nano Banana Pro Edit Node",
     "SupersideNanoBananaV2EditNode": "Superside Nano Banana V2 Edit Node",
+    "SupersideNanoBananaV21EditNode": "Superside Nano Banana 2.1 Edit",
     "SupersideNormalizeProductNode": "Superside Normalize Product",
     "SupersideSkuReferenceSheetNode": "Superside SKU Reference Sheet",
     "SupersideTileUpscaleNode": "Superside Tile Upscale",

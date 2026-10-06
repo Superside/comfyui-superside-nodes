@@ -271,6 +271,10 @@ PRICES = {
         "$0.08 per image (0.5K x0.75, 2K x1.5, 4K x2), +$0.015 with web search, +$0.002 with high thinking",
         _nano_banana_2_edit,
     ),
+    "google/nano-banana-2.1/edit": _unpriced(
+        "price not verified here - 2.0 is $0.08 per image, but 2.1 was not measured",
+        NO_PUBLISHED_PRICE,
+    ),
     "fal-ai/nano-banana-pro/edit": _priced(
         "$0.15 per image (4K charged at double), +$0.015 with web search",
         _nano_banana_pro_edit,
@@ -455,6 +459,7 @@ NODE_ENDPOINTS = {
     "SupersideKling25TurboProImageToVideoNode": ["fal-ai/kling-video/v2.5-turbo/pro/image-to-video"],
     "SupersideNanoBananaProEditNode": ["fal-ai/nano-banana-pro/edit"],
     "SupersideNanoBananaV2EditNode": ["fal-ai/nano-banana-2/edit"],
+    "SupersideNanoBananaV21EditNode": ["google/nano-banana-2.1/edit"],
     "SupersidePASDUpscalerNode": ["fal-ai/pasd"],
     "SupersidePortraitSectionsNode": ["fal-ai/sam-3/image"],
     "SupersideSAM3RegionSelectorNode": ["fal-ai/sam-3/image"],

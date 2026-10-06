@@ -41,7 +41,8 @@ class SupersideNanoBananaV2EditNode(
                 "image_5": ("IMAGE",),
                 "image_6": ("IMAGE",),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 4}),
-                "seed": ("INT", {"default": None, "min": 0, "max": 2147483647}),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647,
+                                 "tooltip": "-1 = random"}),
                 "aspect_ratio": (
                     [
                         "21:9",
@@ -111,8 +112,12 @@ class SupersideNanoBananaV2EditNode(
         if kwargs.get("num_images") is not None:
             arguments["num_images"] = kwargs["num_images"]
 
-        if kwargs.get("seed") is not None:
-            arguments["seed"] = kwargs["seed"]
+        # A None default rendered as 0 in the widget, and 0 is not None, so every
+        # run went out pinned to seed 0 while the user believed it was unset.
+        # -1 is this package's "random" everywhere else.
+        seed = kwargs.get("seed")
+        if seed is not None and int(seed) >= 0:
+            arguments["seed"] = int(seed)
 
         if kwargs.get("aspect_ratio") is not None:
             arguments["aspect_ratio"] = kwargs["aspect_ratio"]
@@ -135,8 +140,13 @@ class SupersideNanoBananaV2EditNode(
         if kwargs.get("enable_web_search") is not None:
             arguments["enable_web_search"] = kwargs["enable_web_search"]
 
-        if kwargs.get("thinking_level") != "none":
-            arguments["thinking_level"] = kwargs["thinking_level"]
+        # .get() returns None when the caller omits the argument entirely, and
+        # None != "none", so the old form indexed a key that was not there and
+        # raised KeyError. ComfyUI always sends the widget, so this only ever
+        # showed up when the node was driven from code.
+        thinking_level = kwargs.get("thinking_level")
+        if thinking_level and thinking_level != "none":
+            arguments["thinking_level"] = thinking_level
 
         return arguments
 

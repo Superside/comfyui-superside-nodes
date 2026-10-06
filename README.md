@@ -139,6 +139,14 @@ Context-aware image editing, up to 6 reference images, up to 4K output.
 - **Outputs:** `images` (IMAGE), `description` (STRING)
 
 #### Nano Banana V2 Edit (`SupersideNanoBananaV2EditNode`)
+
+#### Nano Banana 2.1 Edit (`SupersideNanoBananaV21EditNode`)
+Edits images with `google/nano-banana-2.1/edit` - note the endpoint sits under `google/`, not `fal-ai/` like 2.0 and Pro. Same input shape as Nano Banana 2 (up to six reference images, one prompt, the same aspect-ratio and resolution controls), so it subclasses that node and only changes the endpoint and the name failures are reported under.
+
+Every widget was exercised against the live endpoint: 1 image at 2K with `thinking_level` high returned 2880x1440 in 26s, two images at 16:9 with a fixed seed returned 1376x768 in 15s, and `safety_tolerance`, `limit_generations`, `enable_web_search` and `sync_mode` were each accepted.
+- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`-`image_6`, `num_images`, `seed` (-1 = random), `aspect_ratio`, `output_format`, `safety_tolerance`, `sync_mode`, `resolution` (0.5K/1K/2K/4K), `limit_generations`, `enable_web_search`, `thinking_level`
+- **Outputs:** `images` (IMAGE), `description` (STRING)
+- **Price:** not verified here. 2.0 is $0.08 per image; the ledger records 2.1 without a dollar figure rather than assume the same rate.
 Same family as Pro, with extra controls: seed, safety tolerance, web search grounding, reasoning depth.
 - **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`-`image_6`, `num_images`, `seed`, `aspect_ratio`, `output_format`, `safety_tolerance`, `sync_mode`, `resolution` (0.5K-4K), `limit_generations`, `enable_web_search`, `thinking_level`
 - **Outputs:** `images` (IMAGE), `description` (STRING)
