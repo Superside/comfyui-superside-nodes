@@ -38,6 +38,13 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+**2026-10-30 - 24 video-generation nodes: Wan 3.0, Kling 3 and 4, Seedance 2.5, MiniMax H3.**
+Built from a field table generated out of fal's published schemas rather than
+one hand-written file per model, so enums, ranges and defaults match fal and
+`tools/refresh_video_specs.py` picks up upstream changes. All return native
+VIDEO plus the URL. Prices for the 43 endpoints come from fal's own catalogue;
+note the MiniMax H3 Max rates are promotional and the discount ends 2026-10-31.
+
 - **Stitch Region: the feather no longer erases a thin mask.** A Gaussian of radius R over a structure a few pixels wide - a spectacle rim, a cable, a strap - spreads it out and drops the mask's peak far below 1: a 24px feather on an 8px rim left it at **0.125**, so the paste was 13% applied and the pasted object came through as a washed-out ghost of whatever lay underneath. The mask is now scaled back up by the lost peak, so the core stays solid while the outer falloff stays soft.
 - **The result-text display no longer serialises.** `web/js/show_text.js` saved its read-only display widget into `widgets_values`, which took the slot the next widget added on the Python side would claim - a saved `""` then landed on an INT input and ComfyUI refused to run the node ("an input value has the wrong type"). The display is a view of the last run, so it is marked `serialize = false` and the load-time restore is gone. If you hit that error on a workflow saved earlier, set the affected widget back to its default once and re-save.
 - **Florence-2 Smart Region Selector: parity with the retired nb2 selector.** Adds the `glasses` region type (Florence answers the bare noun `eyeglasses` far more reliably than a long description, which comes back with the front rim alone), plus `mask_blur_percent`, `detection_mode` (auto / segmentation / grounding_bbox, with auto preferring a grounding box for a face) and `upload_max_dimension`. These were the settings the working glasses try-on pipeline depended on.
@@ -285,6 +292,161 @@ Edit an existing video with a simple text instruction (e.g. "Make this video ani
 - **Inputs:** `video` (VIDEO), `prompt`, `api_key`
 - **Outputs:** `video` (VIDEO - connect directly to SaveVideo/PreviewVideo), `video_url` (STRING, direct fal.ai link)
 
+### Video generation (Wan 3.0, Kling 3 and 4, Seedance 2.5, MiniMax H3)
+
+These 24 nodes are built from a field table generated out of fal's own
+published schemas (`modules/video_model_specs.json`), rather than hand-written
+one file per model. Every enum, range, default and tooltip is whatever fal says
+it is, and `python tools/refresh_video_specs.py` pulls upstream changes back in.
+
+All of them return ComfyUI's native **VIDEO** alongside the URL, so SaveVideo or
+PreviewVideo wires straight in - no copying URLs by hand.
+
+A few conventions that apply across the set:
+
+- **Tiers live in a `model` dropdown.** Endpoints that differ in price and
+  quality but not in how you drive them share one node. A control the chosen
+  tier does not accept is simply left out of the request.
+- **A widget may offer more than the chosen tier takes.** MiniMax `h3` renders
+  2K and 4K where `h3 max` tops out at 1080P, so the dropdown shows the union
+  and the node refuses an illegal combination with a message naming what that
+  tier does accept.
+- **Media lists get four sockets.** `reference_image_1`-`4` and the like; past
+  four, pass URLs through the matching text field.
+- **Structured fields take JSON.** `elements`, `multi_prompt`, `loras`,
+  `reference_conditions` and `camera_trajectory` are arrays of objects in fal's
+  API, so they are entered as JSON exactly as fal documents them.
+- **`sync_mode` is not offered.** It returns the video base64-inline instead of
+  a URL, which is not how these nodes collect the result.
+- **Nullable numbers use a sentinel.** `-1` on a seed, `0` on a duration, means
+  leave it out and let the model decide.
+
+**Wan 3.0** - Alibaba's Wan 3.0. The `prime` tier is the higher-fidelity one and costs about 40% more per second.
+
+#### Wan 3.0 Image-to-Video (`SupersideWan30ImageToVideoNode`)
+Tiers: `standard`, `prime`.
+- **Inputs:** `model`, `start_image_url`, `api_key` · optional: `prompt`, `end_image_url`, `audio`, `enable_safety_checker`, `seed`, `duration`, `enable_thinking`, `aspect_ratio`, `resolution`, `enable_prompt_expansion`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### Wan 3.0 Reference-to-Video (`SupersideWan30ReferenceToVideoNode`)
+Tiers: `standard`, `prime`.
+- **Inputs:** `model`, `api_key` · optional: `prompt`, `file_url`, `audio`, `enable_safety_checker`, `seed`, `reference_audio_urls`, `duration`, `reference_image_1`-`reference_image_4`, `aspect_ratio`, `reference_video_1`-`reference_video_4`, `enable_thinking`, `resolution`, `web_url`, `enable_prompt_expansion`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### Wan 3.0 Text-to-Video (`SupersideWan30TextToVideoNode`)
+Tiers: `standard`, `prime`.
+- **Inputs:** `model`, `prompt`, `api_key` · optional: `duration`, `audio`, `enable_safety_checker`, `seed`, `enable_thinking`, `aspect_ratio`, `resolution`, `enable_prompt_expansion`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+**Kling 3** - Five tiers behind one dropdown. `turbo` tiers take a smaller set of controls than pro/standard/4k, and the node sends only what the chosen tier accepts.
+
+#### Kling 3 Image-to-Video (`SupersideKlingV3ImageToVideoNode`)
+Tiers: `pro`, `standard`, `4k`, `turbo pro`, `turbo standard`.
+- **Inputs:** `model`, `api_key` · optional: `prompt`, `multi_prompt`, `end_image_url`, `generate_audio`, `cfg_scale`, `enable_safety_checker`, `negative_prompt`, `shot_type`, `duration`, `start_image_url`, `elements`, `image_url`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### Kling 3 Motion Control (`SupersideKlingV3MotionControlNode`)
+Tiers: `pro`, `standard`.
+- **Inputs:** `model`, `image_url`, `character_orientation`, `video_url`, `api_key` · optional: `prompt`, `elements`, `keep_original_sound`, `enable_safety_checker`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### Kling 3 Text-to-Video (`SupersideKlingV3TextToVideoNode`)
+Tiers: `pro`, `standard`, `4k`, `turbo pro`, `turbo standard`.
+- **Inputs:** `model`, `api_key` · optional: `prompt`, `multi_prompt`, `generate_audio`, `cfg_scale`, `enable_safety_checker`, `negative_prompt`, `duration`, `shot_type`, `aspect_ratio`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+**Kling 4** - Kling 4.0, including editing an existing video. Note these endpoint ids sit at `kling/v4/...`, without the usual `fal-ai/` prefix.
+
+#### Kling 4 Edit Video (`SupersideKlingV4EditVideoNode`)
+- **Inputs:** `prompt`, `video_url`, `api_key` · optional: `image_1`-`image_4`, `video_1`-`video_4`, `voice_ids`, `duration`, `resolution`, `elements`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### Kling 4 Image-to-Video (`SupersideKlingV4ImageToVideoNode`)
+- **Inputs:** `start_image_url`, `api_key` · optional: `prompt`, `multi_prompt`, `end_image_url`, `resolution`, `middle_image_1`-`middle_image_4`, `duration`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### Kling 4 Reference-to-Video (`SupersideKlingV4ReferenceToVideoNode`)
+- **Inputs:** `api_key` · optional: `prompt`, `image_1`-`image_4`, `end_image_url`, `video_1`-`video_4`, `multi_prompt`, `voice_ids`, `duration`, `middle_image_1`-`middle_image_4`, `resolution`, `start_image_url`, `aspect_ratio`, `elements`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### Kling 4 Text-to-Video (`SupersideKlingV4TextToVideoNode`)
+- **Inputs:** `api_key` · optional: `prompt`, `multi_prompt`, `duration`, `resolution`, `aspect_ratio`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+**Seedance 2.5** - ByteDance Seedance 2.5 (US). Billed per second and considerably dearer than the 1.x nodes - check the price note before a run.
+
+#### Seedance 2.5 Image-to-Video (`SupersideSeedance25ImageToVideoNode`)
+- **Inputs:** `image_url`, `api_key` · optional: `end_image_url`, `end_user_id`, `duration`, `codec`, `prompt`, `aspect_ratio`, `bitrate_mode`, `generate_audio`, `resolution`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### Seedance 2.5 Reference-to-Video (`SupersideSeedance25ReferenceToVideoNode`)
+- **Inputs:** `api_key` · optional: `resolution`, `duration`, `end_user_id`, `prompt`, `codec`, `seed`, `audio_urls`, `aspect_ratio`, `video_1`-`video_4`, `image_1`-`image_4`, `generate_audio`, `bitrate_mode`, `task`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### Seedance 2.5 Text-to-Video (`SupersideSeedance25TextToVideoNode`)
+- **Inputs:** `prompt`, `api_key` · optional: `end_user_id`, `duration`, `codec`, `bitrate_mode`, `aspect_ratio`, `resolution`, `generate_audio`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+**MiniMax H3** - The H3 family: `h3`, `h3 max` and `h3 max turbo` where all three exist, plus the H3 Max-only tools.
+
+#### MiniMax H3 Max 3D-to-Video (`SupersideMiniMaxH33DToVideoNode`)
+- **Inputs:** `video_url`, `api_key` · optional: `enable_safety_checker`, `prompt`, `max_generated_reference_images`, `resolution`, `reference_image_1`-`reference_image_4`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### MiniMax H3 Max Camera Controls (`SupersideMiniMaxH3CameraControlsNode`)
+- **Inputs:** `prompt_expansion_mode`, `image_url`, `api_key` · optional: `free_camera_preset`, `camera_trajectory`, `duration`, `seed`, `prompt`, `enable_safety_checker`, `resolution`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### MiniMax H3 Extend Video (`SupersideMiniMaxH3ExtendVideoNode`)
+Tiers: `h3 max`, `h3 max turbo`.
+- **Inputs:** `model`, `video_url`, `prompt`, `api_key` · optional: `output`, `duration`, `seed`, `aspect_ratio`, `reference_audio_urls`, `enable_prompt_expansion`, `enable_safety_checker`, `resolution`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### MiniMax H3 Image-to-Video (`SupersideMiniMaxH3ImageToVideoNode`)
+Tiers: `h3`, `h3 max`, `h3 max turbo`.
+- **Inputs:** `model`, `prompt`, `api_key` · optional: `image_url`, `end_image_url`, `enable_safety_checker`, `duration`, `target_audio_url`, `seed`, `resolution`, `prompt_expansion_mode`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### MiniMax H3 Max Lip Sync (`SupersideMiniMaxH3LipSyncNode`)
+- **Inputs:** `audio_url`, `image_url`, `api_key` · optional: `seed`, `enable_safety_checker`, `resolution`, `enable_transcription`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### MiniMax H3 Max Recast (`SupersideMiniMaxH3RecastNode`)
+- **Inputs:** `reference_image_1`-`reference_image_4`, `video_url`, `api_key` · optional: `prompt`, `seed`, `resolution`, `enhance_realism`, `enable_safety_checker`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### MiniMax H3 Reference-to-Video LoRA (`SupersideMiniMaxH3ReferenceToVideoLoraNode`)
+- **Inputs:** `prompt`, `loras`, `api_key` · optional: `reference_audio_urls`, `enable_safety_checker`, `duration`, `reference_image_1`-`reference_image_4`, `seed`, `resolution`, `prompt_expansion_mode`, `reference_video_1`-`reference_video_4`, `aspect_ratio`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### MiniMax H3 Reference-to-Video (`SupersideMiniMaxH3ReferenceToVideoNode`)
+Tiers: `h3`, `h3 max`.
+- **Inputs:** `model`, `prompt`, `api_key` · optional: `reference_audio_urls`, `enable_safety_checker`, `duration`, `reference_image_1`-`reference_image_4`, `seed`, `resolution`, `prompt_expansion_mode`, `reference_video_1`-`reference_video_4`, `aspect_ratio`, `end_image_url`, `middle_image_url`, `reference_conditions`, `image_url`, `middle_frame_time`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### MiniMax H3 Max Reframe Video (`SupersideMiniMaxH3ReframeVideoNode`)
+- **Inputs:** `video_url`, `api_key` · optional: `aspect_ratio`, `prompt`, `seed`, `enable_safety_checker`, `resolution`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+#### MiniMax H3 Text-to-Video (`SupersideMiniMaxH3TextToVideoNode`)
+Tiers: `h3`, `h3 max`, `h3 max turbo`.
+- **Inputs:** `model`, `prompt`, `api_key` · optional: `enable_safety_checker`, `duration`, `target_audio_url`, `seed`, `resolution`, `prompt_expansion_mode`, `aspect_ratio`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+**MiniMax Video 01 Director** - The older Director model, with its camera-movement prompt language.
+
+#### MiniMax Video 01 Director (`SupersideMiniMaxVideo01DirectorNode`)
+Tiers: `text-to-video`, `image-to-video`.
+- **Inputs:** `model`, `prompt`, `api_key` · optional: `enable_safety_checker`, `prompt_optimizer`, `image_url`
+- **Outputs:** `video` (VIDEO), `video_url` (STRING)
+
+**Not included, and why.** `minimax/h3-max/director` and
+`minimax/h3-max/reference-director` are real and public, but they are realtime
+session endpoints in fal's "worlds" category - billed per session with a
+60-second minimum, with no queue schema published. They are an interactive
+protocol rather than a prompt-in/video-out call, so they do not fit this node
+shape and no node pretends to cover them. MiniMax's speech, music and
+voice-cloning endpoints are also left out: they return audio, not video.
 ### Image-to-video
 
 #### Kling 2.1 Image-to-Video (`SupersideKling21ImageToVideoNode`)

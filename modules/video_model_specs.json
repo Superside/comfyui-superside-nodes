@@ -1,0 +1,3448 @@
+[
+ {
+  "id": "wan_30_image_to_video",
+  "class": "SupersideWan30ImageToVideoNode",
+  "display": "Superside Wan 3.0 Image-to-Video",
+  "variants": {
+   "standard": "alibaba/wan-3.0/image-to-video",
+   "prime": "alibaba/wan-3.0-prime/image-to-video"
+  },
+  "fields": [
+   {
+    "name": "start_image_url",
+    "desc": "First frame of the generated video.",
+    "required": true,
+    "kind": "image",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": [
+     "standard",
+     "prime"
+    ]
+   },
+   {
+    "name": "prompt",
+    "desc": "Text prompt describing the motion to generate.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "end_image_url",
+    "desc": "Last frame of the generated video. Requires start_image_url.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "audio",
+    "desc": "Include generated audio.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "Enable content moderation for input and output. Disabling it requires account authorization; unauthorized requests are always checked.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Output duration in seconds. Set to null for smart duration, which lets the model pick a length from the prompt and reference media.",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 2,
+    "max": 30,
+    "nullable": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_thinking",
+    "desc": "Enable enhanced reasoning before generation.",
+    "required": false,
+    "kind": "bool",
+    "default": false,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "Output aspect ratio, or adaptive selection.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "adaptive",
+     "16:9",
+     "4:3",
+     "1:1",
+     "3:4",
+     "9:16"
+    ],
+    "default": "adaptive",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output video resolution tier.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480p",
+     "720p",
+     "1080p"
+    ],
+    "default": "1080p",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_prompt_expansion",
+    "desc": "Enable intelligent prompt rewriting. Disabling it can save roughly 20-60 seconds of latency but is likely to degrade generation quality.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "wan_30_text_to_video",
+  "class": "SupersideWan30TextToVideoNode",
+  "display": "Superside Wan 3.0 Text-to-Video",
+  "variants": {
+   "standard": "alibaba/wan-3.0/text-to-video",
+   "prime": "alibaba/wan-3.0-prime/text-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt for the generated video.",
+    "required": true,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": [
+     "standard",
+     "prime"
+    ]
+   },
+   {
+    "name": "duration",
+    "desc": "Output duration in seconds. Set to null for smart duration, which lets the model pick a length from the prompt and reference media.",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 2,
+    "max": 30,
+    "nullable": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "audio",
+    "desc": "Include generated audio.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "Enable content moderation for input and output. Disabling it requires account authorization; unauthorized requests are always checked.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_thinking",
+    "desc": "Enable enhanced reasoning before generation.",
+    "required": false,
+    "kind": "bool",
+    "default": false,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "Output aspect ratio, or adaptive selection.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "adaptive",
+     "16:9",
+     "4:3",
+     "1:1",
+     "3:4",
+     "9:16"
+    ],
+    "default": "adaptive",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output video resolution tier.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480p",
+     "720p",
+     "1080p"
+    ],
+    "default": "1080p",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_prompt_expansion",
+    "desc": "Enable intelligent prompt rewriting. Disabling it can save roughly 20-60 seconds of latency but is likely to degrade generation quality.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "wan_30_reference_to_video",
+  "class": "SupersideWan30ReferenceToVideoNode",
+  "display": "Superside Wan 3.0 Reference-to-Video",
+  "variants": {
+   "standard": "alibaba/wan-3.0/reference-to-video",
+   "prime": "alibaba/wan-3.0-prime/reference-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt directing how the reference media is used. Reference media can be addressed positionally, e.g. 'the subject in Image 1 walks past Video 1'.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "file_url",
+    "desc": "Document URL to base the video on. Requires enable_thinking=true.",
+    "required": false,
+    "kind": "url",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "audio",
+    "desc": "Include generated audio.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "Enable content moderation for input and output. Disabling it requires account authorization; unauthorized requests are always checked.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_audio_urls",
+    "desc": "Up to 5 reference audio URLs totaling at most 15 seconds.",
+    "required": false,
+    "kind": "url_list",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Output duration in seconds. Set to null for smart duration, which lets the model pick a length from the prompt and reference media.",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 2,
+    "max": 30,
+    "nullable": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_image_urls",
+    "desc": "Up to 10 reference image URLs.",
+    "required": false,
+    "kind": "image_list",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "Output aspect ratio, or adaptive selection.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "adaptive",
+     "16:9",
+     "4:3",
+     "1:1",
+     "3:4",
+     "9:16"
+    ],
+    "default": "adaptive",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_video_urls",
+    "desc": "Up to 5 reference video URLs totaling at most 15 seconds. Each clip must be at least 16 fps. Input video duration is billed in addition to output duration.",
+    "required": false,
+    "kind": "video_list",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_thinking",
+    "desc": "Enable enhanced reasoning before generation.",
+    "required": false,
+    "kind": "bool",
+    "default": false,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output video resolution tier.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480p",
+     "720p",
+     "1080p"
+    ],
+    "default": "1080p",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "web_url",
+    "desc": "Public webpage URL to base the video on. Requires enable_thinking=true. Only pages that do not require login can be read.",
+    "required": false,
+    "kind": "url",
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_prompt_expansion",
+    "desc": "Enable intelligent prompt rewriting. Disabling it can save roughly 20-60 seconds of latency but is likely to degrade generation quality.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "standard",
+     "prime"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "kling_v3_image_to_video",
+  "class": "SupersideKlingV3ImageToVideoNode",
+  "display": "Superside Kling 3 Image-to-Video",
+  "variants": {
+   "pro": "fal-ai/kling-video/v3/pro/image-to-video",
+   "standard": "fal-ai/kling-video/v3/standard/image-to-video",
+   "4k": "fal-ai/kling-video/v3/4k/image-to-video",
+   "turbo pro": "fal-ai/kling-video/v3/turbo/pro/image-to-video",
+   "turbo standard": "fal-ai/kling-video/v3/turbo/standard/image-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt for video generation. Either prompt or multi_prompt must be provided, but not both.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k",
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "multi_prompt",
+    "desc": "List of prompts for multi-shot video generation. If provided, divides the video into multiple shots.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k",
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "end_image_url",
+    "desc": "URL of the image to be used for the end of the video",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "generate_audio",
+    "desc": "Whether to generate native audio for the video. Supports Chinese and English voice output. Other languages are automatically translated to English. For English speech, use lowercase letters; for acronyms or proper nouns, use uppercase.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "cfg_scale",
+    "desc": "The CFG (Classifier Free Guidance) scale is a measure of how close you want\n            the model to stick to your prompt.",
+    "required": false,
+    "kind": "float",
+    "default": 0.5,
+    "min": 0,
+    "max": 1,
+    "nullable": false,
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "Disabling safety checks requires account authorization; unauthorized requests are always checked.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "pro",
+     "standard",
+     "4k",
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "negative_prompt",
+    "desc": "",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "blur, distort, and low quality",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "shot_type",
+    "desc": "The type of multi-shot video generation. 'intelligent' lets the model automatically determine shot structure.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "customize",
+     "intelligent"
+    ],
+    "default": "customize",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "The duration of the generated video in seconds",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11",
+     "12",
+     "13",
+     "14",
+     "15"
+    ],
+    "default": "5",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k",
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "start_image_url",
+    "desc": "URL of the image to be used for the video",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": [
+     "pro",
+     "standard",
+     "4k"
+    ]
+   },
+   {
+    "name": "elements",
+    "desc": "Elements (characters/objects) to include in the video. Each example can either be an image set (frontal + reference images) or a video. Reference in prompt as @Element1, @Element2, etc.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "image_url",
+    "desc": "First-frame reference image. Formats: .jpg/.jpeg/.png; max 50MB; min 300px per side; aspect ratio within 1:2.5 to 2.5:1.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": [
+     "turbo pro",
+     "turbo standard"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "kling_v3_text_to_video",
+  "class": "SupersideKlingV3TextToVideoNode",
+  "display": "Superside Kling 3 Text-to-Video",
+  "variants": {
+   "pro": "fal-ai/kling-video/v3/pro/text-to-video",
+   "standard": "fal-ai/kling-video/v3/standard/text-to-video",
+   "4k": "fal-ai/kling-video/v3/4k/text-to-video",
+   "turbo pro": "fal-ai/kling-video/v3/turbo/pro/text-to-video",
+   "turbo standard": "fal-ai/kling-video/v3/turbo/standard/text-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt for video generation. Either prompt or multi_prompt must be provided, but not both.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k",
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "multi_prompt",
+    "desc": "List of prompts for multi-shot video generation. If provided, overrides the single prompt and divides the video into multiple shots with specified prompts and durations.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k",
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "generate_audio",
+    "desc": "Whether to generate native audio for the video. Supports Chinese and English voice output. Other languages are automatically translated to English. For English speech, use lowercase letters; for acronyms or proper nouns, use uppercase.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "cfg_scale",
+    "desc": "The CFG (Classifier Free Guidance) scale is a measure of how close you want\n            the model to stick to your prompt.",
+    "required": false,
+    "kind": "float",
+    "default": 0.5,
+    "min": 0,
+    "max": 1,
+    "nullable": false,
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "Disabling safety checks requires account authorization; unauthorized requests are always checked.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "pro",
+     "standard",
+     "4k",
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "negative_prompt",
+    "desc": "",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "blur, distort, and low quality",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "The duration of the generated video in seconds",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11",
+     "12",
+     "13",
+     "14",
+     "15"
+    ],
+    "default": "5",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k",
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "shot_type",
+    "desc": "The type of multi-shot video generation. 'intelligent' lets the model automatically determine shot structure.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "customize",
+     "intelligent"
+    ],
+    "default": "customize",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "The aspect ratio of the generated video frame",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "16:9",
+     "9:16",
+     "1:1"
+    ],
+    "default": "16:9",
+    "tiers": [
+     "pro",
+     "standard",
+     "4k",
+     "turbo pro",
+     "turbo standard"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "kling_v3_motion_control",
+  "class": "SupersideKlingV3MotionControlNode",
+  "display": "Superside Kling 3 Motion Control",
+  "variants": {
+   "pro": "fal-ai/kling-video/v3/pro/motion-control",
+   "standard": "fal-ai/kling-video/v3/standard/motion-control"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "pro",
+     "standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "elements",
+    "desc": "Optional element for facial consistency binding. Upload a facial element to enhance identity preservation in the generated video. Only 1 element is supported. Reference in prompt as @Element1. Element binding is only supported when character_orientation is 'video'.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "pro",
+     "standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "image_url",
+    "desc": "Reference image URL. The characters, backgrounds, and other elements in the generated video are based on this reference image. Characters should have clear body proportions, avoid occlusion, and occupy more than 5% of the image area.",
+    "required": true,
+    "kind": "image",
+    "tiers": [
+     "pro",
+     "standard"
+    ],
+    "required_in": [
+     "pro",
+     "standard"
+    ]
+   },
+   {
+    "name": "character_orientation",
+    "desc": "Controls whether the output character's orientation matches the reference image or video. 'video': orientation matches reference video - better for complex motions (max 30s). 'image': orientation matches reference image - better for following camera movements (max 10s).",
+    "required": true,
+    "kind": "enum",
+    "options": [
+     "image",
+     "video"
+    ],
+    "default": "image",
+    "tiers": [
+     "pro",
+     "standard"
+    ],
+    "required_in": [
+     "pro",
+     "standard"
+    ]
+   },
+   {
+    "name": "keep_original_sound",
+    "desc": "Whether to keep the original sound from the reference video.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "pro",
+     "standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "Disabling safety checks requires account authorization; unauthorized requests are always checked.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "pro",
+     "standard"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "video_url",
+    "desc": "Reference video URL. The character actions in the generated video will be consistent with this reference video. Should contain a realistic style character with entire body or upper body visible, including head, without obstruction. Duration limit depends on character_orientation: 10s max for 'image', 30s max for 'video'.",
+    "required": true,
+    "kind": "video",
+    "tiers": [
+     "pro",
+     "standard"
+    ],
+    "required_in": [
+     "pro",
+     "standard"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "kling_v4_image_to_video",
+  "class": "SupersideKlingV4ImageToVideoNode",
+  "display": "Superside Kling 4 Image-to-Video",
+  "variants": {
+   "default": "kling/v4/image-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt. Either prompt or multi_prompt must be provided.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "multi_prompt",
+    "desc": "Per-shot prompts for multi-shot generation. The video duration is the sum of the shot durations.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "end_image_url",
+    "desc": "Image to use as the last frame of the video.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output resolution.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "720p",
+     "1080p"
+    ],
+    "default": "1080p",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "start_image_url",
+    "desc": "Image to use as the first frame of the video.\n\nMax file size: 30.0MB, Min width: 300px, Min height: 300px, Min aspect ratio: 0.40, Max aspect ratio: 2.50, Timeout: 20.0s",
+    "required": true,
+    "kind": "image",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "middle_image_urls",
+    "desc": "Ordered keyframes between the first and last frames (max 8).",
+    "required": false,
+    "kind": "image_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Video duration in seconds (3-30).",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 3,
+    "max": 30,
+    "nullable": false,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "kling_v4_text_to_video",
+  "class": "SupersideKlingV4TextToVideoNode",
+  "display": "Superside Kling 4 Text-to-Video",
+  "variants": {
+   "default": "kling/v4/text-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt. Either prompt or multi_prompt must be provided.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "multi_prompt",
+    "desc": "Per-shot prompts for multi-shot generation. The video duration is the sum of the shot durations.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Video duration in seconds (3-30).",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 3,
+    "max": 30,
+    "nullable": false,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output resolution.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "720p",
+     "1080p"
+    ],
+    "default": "1080p",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "Aspect ratio of the generated video.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "16:9",
+     "9:16",
+     "1:1",
+     "21:9"
+    ],
+    "default": "16:9",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "kling_v4_reference_to_video",
+  "class": "SupersideKlingV4ReferenceToVideoNode",
+  "display": "Superside Kling 4 Reference-to-Video",
+  "variants": {
+   "default": "kling/v4/reference-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt. Reference inputs as @Image1, @Video1, @Element1, etc. Either prompt or multi_prompt must be provided.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "image_urls",
+    "desc": "Reference images, referenced as @Image1, @Image2, ... (max 10).",
+    "required": false,
+    "kind": "image_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "end_image_url",
+    "desc": "Optional image to use as the last frame. Counts toward the image reference limit.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "video_urls",
+    "desc": "Reference videos (3-30s each, 30s combined with element videos), referenced as @Video1, @Video2, ... (max 5).",
+    "required": false,
+    "kind": "video_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "multi_prompt",
+    "desc": "Per-shot prompts for multi-shot generation. The video duration is the sum of the shot durations.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "voice_ids",
+    "desc": "Voices referenced in the prompt as @Voice1, @Voice2, ... (max 3, including voices bound to elements). Create one with https://fal.ai/models/fal-ai/kling-video/create-voice",
+    "required": false,
+    "kind": "str_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Video duration in seconds (3-30).",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 3,
+    "max": 30,
+    "nullable": false,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "middle_image_urls",
+    "desc": "Optional ordered keyframes between the first and last frames (max 8). Count toward the image reference limit.",
+    "required": false,
+    "kind": "image_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output resolution.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "720p",
+     "1080p"
+    ],
+    "default": "1080p",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "start_image_url",
+    "desc": "Optional image to use as the first frame. Counts toward the image reference limit.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "Aspect ratio of the generated video. 'auto' adapts it to the references.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "16:9",
+     "9:16",
+     "1:1",
+     "21:9"
+    ],
+    "default": "16:9",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "elements",
+    "desc": "Characters/objects, referenced as @Element1, @Element2, ... (max 7). Up to 3 elements may carry a voice_id and up to 3 may be video elements.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "kling_v4_edit_video",
+  "class": "SupersideKlingV4EditVideoNode",
+  "display": "Superside Kling 4 Edit Video",
+  "variants": {
+   "default": "kling/v4/video-to-video/edit"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Edit instruction. Reference the source video as @Video1.",
+    "required": true,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "image_urls",
+    "desc": "Reference images, referenced as @Image1, @Image2, ...",
+    "required": false,
+    "kind": "image_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "video_urls",
+    "desc": "Reference videos, referenced as @Video2, @Video3, ... (max 4). The source, reference and element videos must total at most 30s.",
+    "required": false,
+    "kind": "video_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "voice_ids",
+    "desc": "Voices referenced in the prompt as @Voice1, @Voice2, ... (max 3, including voices bound to elements). Create one with https://fal.ai/models/fal-ai/kling-video/create-voice",
+    "required": false,
+    "kind": "str_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Output duration in seconds (3-30). Defaults to the source video's length.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 3,
+    "max": 30,
+    "nullable": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output resolution.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "720p",
+     "1080p"
+    ],
+    "default": "1080p",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "elements",
+    "desc": "Characters/objects, referenced as @Element1, @Element2, ... (max 7). Up to 3 elements may carry a voice_id and up to 3 may be video elements.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "video_url",
+    "desc": "The video to edit (3-30s), referenced as @Video1.\n\nMax file size: 300.0MB, Min width: 700px, Min height: 700px, Max width: 4553px, Max height: 4553px, Min aspect ratio: 0.40, Max aspect ratio: 2.50, Min duration: 3.0s, Max duration: 30.05s, Min FPS: 23.9, Max FPS: 60.05, Timeout: 30.0s",
+    "required": true,
+    "kind": "video",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "seedance_25_image_to_video",
+  "class": "SupersideSeedance25ImageToVideoNode",
+  "display": "Superside Seedance 2.5 Image-to-Video",
+  "variants": {
+   "default": "bytedance/seedance-2.5/us/image-to-video"
+  },
+  "fields": [
+   {
+    "name": "end_image_url",
+    "desc": "The URL of the image to use as the last frame of the video. When provided, the generated video will transition from the starting image to this ending image. Supported formats: JPEG, PNG, WebP, BMP, TIFF, GIF, HEIC, HEIF. Max 30 MB.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "end_user_id",
+    "desc": "The unique user ID of the end user.",
+    "required": false,
+    "kind": "text",
+    "multiline": false,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Duration of the video in seconds. Supports 4 to 30 seconds, or auto to let the model decide based on the prompt.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11",
+     "12",
+     "13",
+     "14",
+     "15",
+     "16",
+     "17",
+     "18",
+     "19",
+     "20",
+     "21",
+     "22",
+     "23",
+     "24",
+     "25",
+     "26",
+     "27",
+     "28",
+     "29",
+     "30"
+    ],
+    "default": "auto",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "codec",
+    "desc": "'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "H264",
+     "H265"
+    ],
+    "default": "auto",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "prompt",
+    "desc": "The text prompt describing the desired motion and action for the video.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "The aspect ratio of the generated video. Always \"auto\" for image-to-video",
+    "required": false,
+    "kind": "text",
+    "multiline": false,
+    "default": "auto",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "bitrate_mode",
+    "desc": "Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "standard",
+     "high"
+    ],
+    "default": "standard",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "generate_audio",
+    "desc": "Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "image_url",
+    "desc": "The URL of the starting frame image to animate. Supported formats: JPEG, PNG, WebP, BMP, TIFF, GIF, HEIC, HEIF. Max 30 MB.",
+    "required": true,
+    "kind": "image",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "resolution",
+    "desc": "Video resolution - 480p for faster generation, 720p for balance, 1080p for high quality.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480p",
+     "720p",
+     "1080p"
+    ],
+    "default": "720p",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "seedance_25_text_to_video",
+  "class": "SupersideSeedance25TextToVideoNode",
+  "display": "Superside Seedance 2.5 Text-to-Video",
+  "variants": {
+   "default": "bytedance/seedance-2.5/us/text-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "The text prompt used to generate the video",
+    "required": true,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "end_user_id",
+    "desc": "The unique user ID of the end user.",
+    "required": false,
+    "kind": "text",
+    "multiline": false,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Duration of the video in seconds. Supports 4 to 30 seconds, or auto to let the model decide based on the prompt.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11",
+     "12",
+     "13",
+     "14",
+     "15",
+     "16",
+     "17",
+     "18",
+     "19",
+     "20",
+     "21",
+     "22",
+     "23",
+     "24",
+     "25",
+     "26",
+     "27",
+     "28",
+     "29",
+     "30"
+    ],
+    "default": "auto",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "codec",
+    "desc": "'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "H264",
+     "H265"
+    ],
+    "default": "auto",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "bitrate_mode",
+    "desc": "Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "standard",
+     "high"
+    ],
+    "default": "standard",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "The aspect ratio of the generated video. Use 16:9 for landscape, 9:16 for portrait/vertical, 1:1 for square, 21:9 for ultrawide cinematic, or auto to let the model decide.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "21:9",
+     "16:9",
+     "4:3",
+     "1:1",
+     "3:4",
+     "9:16"
+    ],
+    "default": "auto",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Video resolution - 480p for faster generation, 720p for balance, 1080p for high quality.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480p",
+     "720p",
+     "1080p"
+    ],
+    "default": "720p",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "generate_audio",
+    "desc": "Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "seedance_25_reference_to_video",
+  "class": "SupersideSeedance25ReferenceToVideoNode",
+  "display": "Superside Seedance 2.5 Reference-to-Video",
+  "variants": {
+   "default": "bytedance/seedance-2.5/us/reference-to-video"
+  },
+  "fields": [
+   {
+    "name": "resolution",
+    "desc": "Video resolution - 480p for faster generation, 720p for balance, 1080p for high quality.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480p",
+     "720p",
+     "1080p"
+    ],
+    "default": "720p",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Duration of the video in seconds. Supports 4 to 30 seconds, or auto to let the model decide based on the prompt.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11",
+     "12",
+     "13",
+     "14",
+     "15",
+     "16",
+     "17",
+     "18",
+     "19",
+     "20",
+     "21",
+     "22",
+     "23",
+     "24",
+     "25",
+     "26",
+     "27",
+     "28",
+     "29",
+     "30"
+    ],
+    "default": "auto",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "end_user_id",
+    "desc": "The unique user ID of the end user.",
+    "required": false,
+    "kind": "text",
+    "multiline": false,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "prompt",
+    "desc": "The text prompt used to generate the video.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "codec",
+    "desc": "'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "H264",
+     "H265"
+    ],
+    "default": "auto",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "Random seed for reproducibility. Note that results may still vary slightly even with the same seed.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "audio_urls",
+    "desc": "Reference audio to guide video generation. Refer to them in the prompt as @Audio1, @Audio2, etc. Supported formats: MP3, WAV. Up to 10 files. Each file must be 1.8 to 30.2 seconds and no larger than 15 MB; combined duration must not exceed 30.2 seconds.",
+    "required": false,
+    "kind": "url_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "The aspect ratio of the generated video. Use 16:9 for landscape, 9:16 for portrait/vertical, 1:1 for square, 21:9 for ultrawide cinematic, or auto to let the model decide.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "21:9",
+     "16:9",
+     "4:3",
+     "1:1",
+     "3:4",
+     "9:16"
+    ],
+    "default": "auto",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "video_urls",
+    "desc": "Reference videos to guide video generation. Refer to them in the prompt as @Video1, @Video2, etc. Supported formats: MP4, MOV. Up to 10 videos. Each video must be 1.8 to 30.2 seconds and no larger than 200 MB; combined duration must not exceed 30.2 seconds. Dimensions must be 300 to 6,000 pixels per side, aspect ratio 0.4 to 2.5, and frame rate 24 to 60 FPS.",
+    "required": false,
+    "kind": "video_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "image_urls",
+    "desc": "Reference images to guide video generation. Refer to them in the prompt as @Image1, @Image2, etc. Supported formats: JPG, PNG, WebP, BMP, TIFF, GIF, HEIC, HEIF. Max 30 MB per image. Up to 30 images. Total files across all modalities must not exceed 50.",
+    "required": false,
+    "kind": "image_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "generate_audio",
+    "desc": "Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "bitrate_mode",
+    "desc": "Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "standard",
+     "high"
+    ],
+    "default": "standard",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "task",
+    "desc": "The type of video generation task. Reference uses the supplied media as guidance. Editing modifies a reference video and automatically coerces aspect_ratio and duration to auto. Extension continues a reference video and automatically coerces aspect_ratio to auto. Auto leaves the task type unset so the model decides it from the prompt and references.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "reference",
+     "editing",
+     "extension"
+    ],
+    "default": "reference",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_image_to_video",
+  "class": "SupersideMiniMaxH3ImageToVideoNode",
+  "display": "Superside MiniMax H3 Image-to-Video",
+  "variants": {
+   "h3": "minimax/h3/image-to-video",
+   "h3 max": "minimax/h3-max/image-to-video",
+   "h3 max turbo": "minimax/h3-max-turbo/image-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt for video generation",
+    "required": true,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ]
+   },
+   {
+    "name": "image_url",
+    "desc": "Optional URL of the image to use as the first frame. When provided, the output canvas follows this image. If only end_image_url is provided, the canvas follows that last frame instead. If both images are omitted, the request is handled as text-to-video (16:9 by default).",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "end_image_url",
+    "desc": "Optional URL of the image to use as the last frame. It may be provided alone for end-only keyframe generation; in that case the output canvas follows this image.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "If set to true, the safety checker will be enabled.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "The duration of the video in seconds.",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 5,
+    "max": 15,
+    "nullable": false,
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "target_audio_url",
+    "desc": "Optional URL of an audio clip at least 2 seconds long (maximum 15 MB) to pin to the generated soundtrack. Longer clips are trimmed to the generated video's length, keeping the beginning. The original audio replaces the output soundtrack, padded with silence if shorter than the video, without changing playback speed. Exceptionally high sample rates may be resampled to 96 kHz. Accepts an HTTP(S) URL or a base64 data URI.",
+    "required": false,
+    "kind": "url",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "Random seed. A random seed is selected when omitted.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "The resolution of the generated video. 480P and 768P are native generation modes; 2K and 4K upscale a 768P base result.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480P",
+     "768P",
+     "2K",
+     "4K",
+     "1080P"
+    ],
+    "default": "768P",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": [],
+    "options_by_tier": {
+     "h3": [
+      "480P",
+      "768P",
+      "2K",
+      "4K"
+     ],
+     "h3 max": [
+      "480P",
+      "768P",
+      "1080P"
+     ],
+     "h3 max turbo": [
+      "480P",
+      "768P",
+      "1080P"
+     ]
+    }
+   },
+   {
+    "name": "prompt_expansion_mode",
+    "desc": "How much effort to spend rewriting the prompt before generation. 'disabled' skips prompt expansion. 'fast' returns in about a second. 'balanced' picks per request. 'quality' spends up to ~30s on a richer prompt.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "disabled",
+     "fast",
+     "balanced",
+     "quality"
+    ],
+    "default": "balanced",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "options_by_tier": {
+     "h3": [
+      "disabled",
+      "fast",
+      "balanced",
+      "quality"
+     ],
+     "h3 max": [
+      "disabled",
+      "balanced",
+      "quality"
+     ],
+     "h3 max turbo": [
+      "disabled",
+      "balanced",
+      "quality"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_text_to_video",
+  "class": "SupersideMiniMaxH3TextToVideoNode",
+  "display": "Superside MiniMax H3 Text-to-Video",
+  "variants": {
+   "h3": "minimax/h3/text-to-video",
+   "h3 max": "minimax/h3-max/text-to-video",
+   "h3 max turbo": "minimax/h3-max-turbo/text-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt for video generation",
+    "required": true,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ]
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "If set to true, the safety checker will be enabled.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "The duration of the video in seconds.",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 5,
+    "max": 15,
+    "nullable": false,
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "target_audio_url",
+    "desc": "Optional URL of an audio clip at least 2 seconds long (maximum 15 MB) to pin to the generated soundtrack. Longer clips are trimmed to the generated video's length, keeping the beginning. The original audio replaces the output soundtrack, padded with silence if shorter than the video, without changing playback speed. Exceptionally high sample rates may be resampled to 96 kHz. Accepts an HTTP(S) URL or a base64 data URI.",
+    "required": false,
+    "kind": "url",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "Random seed. A random seed is selected when omitted.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "The resolution of the generated video. 480P and 768P are native generation modes; 2K and 4K upscale a 768P base result.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480P",
+     "768P",
+     "2K",
+     "4K",
+     "1080P"
+    ],
+    "default": "768P",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": [],
+    "options_by_tier": {
+     "h3": [
+      "480P",
+      "768P",
+      "2K",
+      "4K"
+     ],
+     "h3 max": [
+      "480P",
+      "768P",
+      "1080P"
+     ],
+     "h3 max turbo": [
+      "480P",
+      "768P",
+      "1080P"
+     ]
+    }
+   },
+   {
+    "name": "prompt_expansion_mode",
+    "desc": "How much effort to spend rewriting the prompt before generation. 'disabled' skips prompt expansion. 'fast' returns in about a second. 'balanced' picks per request. 'quality' spends up to ~30s on a richer prompt.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "disabled",
+     "fast",
+     "balanced",
+     "quality"
+    ],
+    "default": "balanced",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "options_by_tier": {
+     "h3": [
+      "disabled",
+      "fast",
+      "balanced",
+      "quality"
+     ],
+     "h3 max": [
+      "disabled",
+      "balanced",
+      "quality"
+     ],
+     "h3 max turbo": [
+      "disabled",
+      "balanced",
+      "quality"
+     ]
+    }
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "The aspect ratio of the generated video.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "21:9",
+     "16:9",
+     "4:3",
+     "1:1",
+     "3:4",
+     "9:16"
+    ],
+    "default": "16:9",
+    "tiers": [
+     "h3",
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_reference_to_video",
+  "class": "SupersideMiniMaxH3ReferenceToVideoNode",
+  "display": "Superside MiniMax H3 Reference-to-Video",
+  "variants": {
+   "h3": "minimax/h3/reference-to-video",
+   "h3 max": "minimax/h3-max/reference-to-video"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt for video generation. Refer to reference assets by their modality and order in the reference lists: Image 1, Image 2, Video 1, Audio 1, and so on.",
+    "required": true,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": [
+     "h3",
+     "h3 max"
+    ]
+   },
+   {
+    "name": "reference_audio_urls",
+    "desc": "URLs of reference audio clips (2-15 seconds each, combined duration at most 15 seconds), referenced in the prompt as Audio 1, Audio 2, and so on. Images, videos, and audio can be provided individually or together. Reference images, videos, and audio clips must add up to at most 12 files.",
+    "required": false,
+    "kind": "url_list",
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "If set to true, the safety checker will be enabled.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "The duration of the video in seconds.",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 5,
+    "max": 15,
+    "nullable": false,
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_image_urls",
+    "desc": "URLs of subject/style reference images, referenced in the prompt as Image 1, Image 2, and so on. Reference images, videos, and audio clips must add up to at most 12 files.",
+    "required": false,
+    "kind": "image_list",
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "Random seed. A random seed is selected when omitted.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "The resolution of the generated video. 480P and 768P are native generation modes; 2K and 4K upscale a 768P base result.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480P",
+     "768P",
+     "2K",
+     "4K",
+     "1080P"
+    ],
+    "default": "768P",
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": [],
+    "options_by_tier": {
+     "h3": [
+      "480P",
+      "768P",
+      "2K",
+      "4K"
+     ],
+     "h3 max": [
+      "480P",
+      "768P",
+      "1080P"
+     ]
+    }
+   },
+   {
+    "name": "prompt_expansion_mode",
+    "desc": "How much effort to spend rewriting the prompt before generation. 'disabled' skips prompt expansion. 'fast' returns in about a second. 'balanced' picks per request. 'quality' spends up to ~30s on a richer prompt.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "disabled",
+     "fast",
+     "balanced",
+     "quality"
+    ],
+    "default": "balanced",
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": [
+     "h3 max"
+    ],
+    "options_by_tier": {
+     "h3": [
+      "disabled",
+      "fast",
+      "balanced",
+      "quality"
+     ],
+     "h3 max": [
+      "disabled",
+      "balanced",
+      "quality"
+     ]
+    }
+   },
+   {
+    "name": "reference_video_urls",
+    "desc": "URLs of motion/reference video clips (2-15 seconds each, combined duration at most 15 seconds), referenced in the prompt as Video 1, Video 2, and so on. Reference images, videos, and audio clips must add up to at most 12 files.",
+    "required": false,
+    "kind": "video_list",
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "The aspect ratio of the generated video.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "adaptive",
+     "21:9",
+     "16:9",
+     "4:3",
+     "1:1",
+     "3:4",
+     "9:16"
+    ],
+    "default": "adaptive",
+    "tiers": [
+     "h3",
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "end_image_url",
+    "desc": "Optional URL of the image to use as the last frame. The video ends exactly on this image.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "middle_image_url",
+    "desc": "Optional image to guide the video at middle_frame_time. Requires start and end images and native 480P or 768P resolution.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_conditions",
+    "desc": "Ordered reference list; cross-modality order is semantic and is preserved end-to-end. Do not combine with reference_*_urls.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "image_url",
+    "desc": "Optional URL of the image to use as the first frame. The video opens exactly on this image while the references keep the subjects consistent; the output canvas follows this image.",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "h3 max"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "middle_frame_time",
+    "desc": "Target time for the middle image, in seconds from the start. Rounded to the nearest frame at 24 fps; it must fall strictly between the first and last frames of the requested duration. Requires middle_image_url.",
+    "required": false,
+    "kind": "float",
+    "default": 0.0,
+    "min": 0.0,
+    "max": 100.0,
+    "nullable": true,
+    "tiers": [
+     "h3 max"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_reference_to_video_lora",
+  "class": "SupersideMiniMaxH3ReferenceToVideoLoraNode",
+  "display": "Superside MiniMax H3 Reference-to-Video LoRA",
+  "variants": {
+   "default": "minimax/h3/reference-to-video/lora"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Text prompt for video generation. Refer to reference assets by their modality and order in the reference lists: Image 1, Image 2, Video 1, Audio 1, and so on.",
+    "required": true,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "reference_audio_urls",
+    "desc": "URLs of reference audio clips (2-15 seconds each, combined duration at most 15 seconds), referenced in the prompt as Audio 1, Audio 2, and so on. Images, videos, and audio can be provided individually or together. Reference images, videos, and audio clips must add up to at most 12 files.",
+    "required": false,
+    "kind": "url_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "loras",
+    "desc": "List of LoRA adapters to apply to the transformer.",
+    "required": true,
+    "kind": "json",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "If set to true, the safety checker will be enabled.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "The duration of the video in seconds.",
+    "required": false,
+    "kind": "int",
+    "default": 5,
+    "min": 5,
+    "max": 15,
+    "nullable": false,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_image_urls",
+    "desc": "URLs of subject/style reference images, referenced in the prompt as Image 1, Image 2, and so on. Reference images, videos, and audio clips must add up to at most 12 files.",
+    "required": false,
+    "kind": "image_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "Random seed. A random seed is selected when omitted.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "The resolution of the generated video. 480P and 768P are native generation modes; 2K and 4K upscale a 768P base result.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480P",
+     "768P",
+     "2K",
+     "4K"
+    ],
+    "default": "2K",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "prompt_expansion_mode",
+    "desc": "How much effort to spend rewriting the prompt before generation. 'disabled' skips prompt expansion. 'fast' returns in about a second. 'balanced' picks per request. 'quality' spends up to ~30s on a richer prompt.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "disabled",
+     "fast",
+     "balanced",
+     "quality"
+    ],
+    "default": "balanced",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_video_urls",
+    "desc": "URLs of motion/reference video clips (2-15 seconds each, combined duration at most 15 seconds), referenced in the prompt as Video 1, Video 2, and so on. Reference images, videos, and audio clips must add up to at most 12 files.",
+    "required": false,
+    "kind": "video_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "The aspect ratio of the generated video.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "adaptive",
+     "21:9",
+     "16:9",
+     "4:3",
+     "1:1",
+     "3:4",
+     "9:16"
+    ],
+    "default": "adaptive",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_lip_sync",
+  "class": "SupersideMiniMaxH3LipSyncNode",
+  "display": "Superside MiniMax H3 Max Lip Sync",
+  "variants": {
+   "default": "minimax/h3-max/lip-sync/image-to-video"
+  },
+  "fields": [
+   {
+    "name": "audio_url",
+    "desc": "Audio to synchronize the mouth movements to, at least 5 seconds long. Supports up to 15 minutes. The output video matches the supplied audio duration.",
+    "required": true,
+    "kind": "url",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "image_url",
+    "desc": "Image to animate. The aspect ratio must be between 0.4 and 2.5.",
+    "required": true,
+    "kind": "image",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "seed",
+    "desc": "Random seed; selected randomly if omitted.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "Enable content safety checks.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output resolution. Uses the supported aspect ratio nearest the image.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480P",
+     "768P",
+     "1080P",
+     "2K"
+    ],
+    "default": "768P",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_transcription",
+    "desc": "Transcribe the supplied audio to guide lip synchronization. When disabled, synchronize to the audio without a transcript.",
+    "required": false,
+    "kind": "bool",
+    "default": false,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_camera_controls",
+  "class": "SupersideMiniMaxH3CameraControlsNode",
+  "display": "Superside MiniMax H3 Max Camera Controls",
+  "variants": {
+   "default": "minimax/h3-max/camera-controls"
+  },
+  "fields": [
+   {
+    "name": "free_camera_preset",
+    "desc": "A fixed free-camera move. Truck, pedestal, and dolly slide the camera; pan, tilt, and roll turn it in place. The path is not editable. When this is set, camera_trajectory is ignored. Each move is one training-scale step: one near-depth unit, 30 degrees of pan, or 20 degrees of tilt or roll.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "truck_right",
+     "truck_left",
+     "pedestal_up",
+     "pedestal_down",
+     "dolly_in",
+     "dolly_out",
+     "pan_right",
+     "pan_left",
+     "tilt_up",
+     "tilt_down",
+     "roll_right",
+     "roll_left",
+     "s_curve_forward"
+    ],
+    "default": "truck_right",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "prompt_expansion_mode",
+    "desc": "How much effort to spend rewriting the prompt before generation. 'disabled' skips prompt expansion. 'balanced' returns in about a second. 'quality' spends up to ~30s on a richer prompt.",
+    "required": true,
+    "kind": "enum",
+    "options": [
+     "disabled",
+     "balanced",
+     "quality"
+    ],
+    "default": "balanced",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "camera_trajectory",
+    "desc": "Ordered camera keyframes. The first pose is held before its time and the final pose is held for the remainder of the video. Signed full turns are preserved, with at most 32 turns of total azimuth travel.",
+    "required": false,
+    "kind": "json",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Video length in seconds. The output can run up to about 0.7 s longer than requested.",
+    "required": false,
+    "kind": "float",
+    "default": 5,
+    "min": 0.92,
+    "max": 15,
+    "nullable": false,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "Random seed. A random seed is selected when omitted.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "image_url",
+    "desc": "URL of the image to use as the first frame.",
+    "required": true,
+    "kind": "image",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "prompt",
+    "desc": "Text prompt for video generation. When omitted or blank, defaults to preserving the frozen reference scene while only the camera moves.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "The same elements in the reference are rigid. Preserve every element exactly. The entire scene is frozen. Only the camera moves. no scene motion only camera motion",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "If set to true, the safety checker will be enabled.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "The native generation resolution, or 1080P latent refinement from a native 768P source.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480P",
+     "768P",
+     "1080P"
+    ],
+    "default": "480P",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_extend_video",
+  "class": "SupersideMiniMaxH3ExtendVideoNode",
+  "display": "Superside MiniMax H3 Extend Video",
+  "variants": {
+   "h3 max": "minimax/h3-max/extend-video",
+   "h3 max turbo": "minimax/h3-max-turbo/extend-video"
+  },
+  "fields": [
+   {
+    "name": "output",
+    "desc": "'extended' returns the source and new footage as one video. 'continuation' returns a clip that starts with a 1.625-second repeat of the source's ending, then shows the new footage.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "extended",
+     "continuation"
+    ],
+    "default": "extended",
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "duration",
+    "desc": "Seconds of new footage to add. The continuation clip also includes 1.625 seconds from the source's ending and may be longer because of frame rounding.",
+    "required": false,
+    "kind": "float",
+    "default": 5,
+    "min": 0.71,
+    "max": 15,
+    "nullable": false,
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "Seed for the continuation. Random when omitted.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "video_url",
+    "desc": "URL of the video to extend. Must be 1.625 s to 60 s long, up to 50 MB, aspect ratio between 0.4 and 2.5.",
+    "required": true,
+    "kind": "video",
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": [
+     "h3 max",
+     "h3 max turbo"
+    ]
+   },
+   {
+    "name": "aspect_ratio",
+    "desc": "Output aspect ratio. 'auto' follows the source video. Other values crop the video to fit the selected ratio.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "auto",
+     "21:9",
+     "16:9",
+     "4:3",
+     "1:1",
+     "3:4",
+     "9:16"
+    ],
+    "default": "auto",
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_audio_urls",
+    "desc": "Optional audio references for the continuation (2\u201315 seconds each, 15 seconds combined). The full extended video retains its original source soundtrack, and its ending still conditions the transition. These clips guide the newly generated audio instead of using that soundtrack as an audio reference. Assign each clip a role in the prompt, such as 'Audio 1 for the voice' and 'Audio 2 for background music'.",
+    "required": false,
+    "kind": "url_list",
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_prompt_expansion",
+    "desc": "Automatically enhance the prompt using the source video to help keep the continuation consistent. May increase processing time.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "prompt",
+    "desc": "What happens next. Describe the continuation, not the source.",
+    "required": true,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": [
+     "h3 max",
+     "h3 max turbo"
+    ]
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "Moderate the source video and the prompt.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output video resolution.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480P",
+     "768P",
+     "1080P",
+     "2K"
+    ],
+    "default": "768P",
+    "tiers": [
+     "h3 max",
+     "h3 max turbo"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_reframe_video",
+  "class": "SupersideMiniMaxH3ReframeVideoNode",
+  "display": "Superside MiniMax H3 Max Reframe Video",
+  "variants": {
+   "default": "minimax/h3-max/reframe-video"
+  },
+  "fields": [
+   {
+    "name": "aspect_ratio",
+    "desc": "Target canvas aspect ratio; the source is contain-fitted and the rest is outpainted.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "16:9",
+     "9:16",
+     "1:1",
+     "4:3",
+     "3:4",
+     "21:9",
+     "9:21"
+    ],
+    "default": "16:9",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "prompt",
+    "desc": "Optional guidance for the new surroundings. Expansion captions the source automatically.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "seed",
+    "desc": "",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 4294967295,
+    "nullable": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "video_url",
+    "desc": "Source video, 0.25 to 300 seconds; fitted onto the target canvas with its timeline and audio preserved.",
+    "required": true,
+    "kind": "video",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Target canvas resolution profile. 1080p uses learned latent upscaling from a native 768p reframe.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480p",
+     "768p",
+     "1080p"
+    ],
+    "default": "768p",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_recast",
+  "class": "SupersideMiniMaxH3RecastNode",
+  "display": "Superside MiniMax H3 Max Recast",
+  "variants": {
+   "default": "minimax/h3-max/recast"
+  },
+  "fields": [
+   {
+    "name": "prompt",
+    "desc": "Optional: who becomes whom, or what else to keep or change.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_image_urls",
+    "desc": "One photo per new person. By default they replace the main people in the video from left to right, each in every shot they appear in.",
+    "required": true,
+    "kind": "image_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "seed",
+    "desc": "Random seed. Leave empty for a random one.",
+    "required": false,
+    "kind": "int",
+    "default": 0,
+    "min": 0,
+    "max": 2147483647,
+    "nullable": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "768P",
+     "1080P"
+    ],
+    "default": "1080P",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enhance_realism",
+    "desc": "More natural skin textures and better blending of the new people into the scene. Off unless set.",
+    "required": false,
+    "kind": "bool",
+    "default": false,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "enable_safety_checker",
+    "desc": "Authorized callers may set false to request relaxed screening.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "video_url",
+    "desc": "The source video, 5 to 30 seconds long, with no single shot longer than 15 seconds.",
+    "required": true,
+    "kind": "video",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "minimax_h3_3d_to_video",
+  "class": "SupersideMiniMaxH33DToVideoNode",
+  "display": "Superside MiniMax H3 Max 3D-to-Video",
+  "variants": {
+   "default": "minimax/h3-max/3d-to-video"
+  },
+  "fields": [
+   {
+    "name": "enable_safety_checker",
+    "desc": "Authorized callers may set false to request relaxed screening.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "prompt",
+    "desc": "Optional clarification of what your proxies represent or how they move, for example: 'The moving block represents a running person.' Camera, trajectories, timing and object count remain defined by the video.",
+    "required": false,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "video_url",
+    "desc": "Blender video, up to 15 seconds and 32 shots, at a public HTTPS URL.",
+    "required": true,
+    "kind": "video",
+    "tiers": [
+     "default"
+    ],
+    "required_in": [
+     "default"
+    ]
+   },
+   {
+    "name": "max_generated_reference_images",
+    "desc": "Maximum NEW images to generate when no reference images are supplied. Ignored when reference images are supplied. Uses fewer when enough views are covered. Uncovered shots stay in the video.",
+    "required": false,
+    "kind": "int",
+    "default": 2,
+    "min": 1,
+    "max": 8,
+    "nullable": false,
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "resolution",
+    "desc": "Output quality. Duration is taken automatically from the video.",
+    "required": false,
+    "kind": "enum",
+    "options": [
+     "480P",
+     "768P",
+     "1080P"
+    ],
+    "default": "768P",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "reference_image_urls",
+    "desc": "Optional environment, subject, interior or detail references. When supplied, uses these images directly without visual planning or generating new images; Scene Intent is optional. Without references, automatically creates appearance references within your new-image limit. Camera and movement always come from the video.",
+    "required": false,
+    "kind": "image_list",
+    "tiers": [
+     "default"
+    ],
+    "required_in": []
+   }
+  ]
+ },
+ {
+  "id": "minimax_video_01_director",
+  "class": "SupersideMiniMaxVideo01DirectorNode",
+  "display": "Superside MiniMax Video 01 Director",
+  "variants": {
+   "text-to-video": "fal-ai/minimax/video-01-director",
+   "image-to-video": "fal-ai/minimax/video-01-director/image-to-video"
+  },
+  "fields": [
+   {
+    "name": "enable_safety_checker",
+    "desc": "Authorized callers may set false to request relaxed screening.",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "text-to-video",
+     "image-to-video"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "prompt",
+    "desc": "Text prompt for video generation. Camera movement instructions can be added using square brackets (e.g. [Pan left] or [Zoom in]). You can use up to 3 combined movements per prompt. Supported movements: Truck left/right, Pan left/right, Push in/Pull out, Pedestal up/down, Tilt up/down, Zoom in/out, Shake, Tracking shot, Static shot. For example: [Truck left, Pan right, Zoom in]. For a more detailed guide, refer https://sixth-switch-2ac.notion.site/T2V-01-Director-Model-Tutorial-with-camera-movement-1886c20a98eb80f395b8e05291ad8645",
+    "required": true,
+    "kind": "text",
+    "multiline": true,
+    "default": "",
+    "tiers": [
+     "text-to-video",
+     "image-to-video"
+    ],
+    "required_in": [
+     "text-to-video",
+     "image-to-video"
+    ]
+   },
+   {
+    "name": "prompt_optimizer",
+    "desc": "Whether to use the model's prompt optimizer",
+    "required": false,
+    "kind": "bool",
+    "default": true,
+    "tiers": [
+     "text-to-video",
+     "image-to-video"
+    ],
+    "required_in": []
+   },
+   {
+    "name": "image_url",
+    "desc": "URL of the image to use as the first frame",
+    "required": false,
+    "kind": "image",
+    "tiers": [
+     "image-to-video"
+    ],
+    "required_in": [
+     "image-to-video"
+    ]
+   }
+  ]
+ }
+]

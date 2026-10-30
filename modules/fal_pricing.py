@@ -22,7 +22,7 @@ recorded here.
 
 import math
 
-SOURCE_DATE = "2026-09-09"
+SOURCE_DATE = "2026-10-30"
 SOURCE_URL = "https://fal.ai/api/models"
 
 
@@ -253,11 +253,156 @@ def _unpriced(note, reason):
     return {"note": note, "estimator": None, "reason": reason}
 
 
+def _quoted(note):
+    """A rate fal publishes, recorded verbatim, with no per-call estimate.
+
+    The video endpoints bill per second of output, but the multiplier moves
+    with resolution, with audio on or off, with reference-token usage, and for
+    the edit and reframe endpoints with input length as well. Turning that into
+    one number per call would mean guessing, so the node shows fal's own rate
+    and the ledger leaves these out of its running total.
+    """
+    return {"note": note, "estimator": None, "reason": VIDEO_RATE_PUBLISHED}
+
+
 GPU_TIME = "fal bills this endpoint per GPU-second, so the cost depends on how long inference runs - there is no per-call price to quote"
 TOKEN_BILLED = "fal bills this endpoint by token consumption, which depends on prompt and image size - no per-call price is published"
+VIDEO_RATE_PUBLISHED = "fal publishes a per-second rate for this endpoint, shown in the note; the node does not compute a per-call total because billing also depends on resolution, audio and reference usage"
 NO_PUBLISHED_PRICE = "fal publishes no price for this endpoint id - check the model page or your fal usage dashboard"
 
 PRICES = {
+    # ---- video generation (Wan 3.0, Kling 3 and 4, Seedance 2.5,
+    # MiniMax H3) - rates as fal publishes them ----------------------
+    "alibaba/wan-3.0/image-to-video": _quoted(
+        "For every second of video you generate, you will be charged $0.05 480p, $0.10 720p, or $0.20 1080p. For example, a 5s video at 720p will cost $0.50. Pricing is subject to change.",
+    ),
+    "alibaba/wan-3.0-prime/image-to-video": _quoted(
+        "Billing is calculated per second of video generated: $0.068 at 480p, $0.14 at 720p, or $0.28 at 1080p. For example, a 5-second video at 720p costs $0.70. Pricing is subject to change.",
+    ),
+    "alibaba/wan-3.0/text-to-video": _quoted(
+        "For every second of video you generate, you will be charged $0.05 480p, $0.10 720p, or $0.20 1080p. For example, a 5s video at 720p will cost $0.50. Pricing is subject to change.",
+    ),
+    "alibaba/wan-3.0-prime/text-to-video": _quoted(
+        "Billing is calculated per second of video generated: $0.068 at 480p, $0.14 at 720p, or $0.28 at 1080p. For example, a 5-second video at 720p costs $0.70. Pricing is subject to change.",
+    ),
+    "alibaba/wan-3.0/reference-to-video": _quoted(
+        "For every second of video you generate, you will be charged $0.05 480p, $0.10 720p, or $0.20 1080p. For example, a 5s video at 720p will cost $0.50. Pricing is subject to change.",
+    ),
+    "alibaba/wan-3.0-prime/reference-to-video": _quoted(
+        "Billing is calculated per second of video generated: $0.068 at 480p, $0.14 at 720p, or $0.28 at 1080p. For example, a 5-second video at 720p costs $0.70. Pricing is subject to change.",
+    ),
+    "fal-ai/kling-video/v3/pro/image-to-video": _quoted(
+        "For every second of video you generated, you will be charged $0.112 (audio off) or $0.168 (audio on), if voice control is used while generating audio you will be charged $0.196. For example, a 5s video with audio on and voice control will cost $0.98",
+    ),
+    "fal-ai/kling-video/v3/standard/image-to-video": _quoted(
+        "For every second of video you generated, you will be charged $0.084 (audio off) or $0.126 (audio on), if voice control is used while generating audio you will be charged $0.154. For example, a 5s video with audio on and voice control will cost $0.77",
+    ),
+    "fal-ai/kling-video/v3/4k/image-to-video": _quoted(
+        "For every second of video you generated, you will be charged $0.42 regardless of whether audio is on or off. For example, a 5s video will cost $2.10.",
+    ),
+    "fal-ai/kling-video/v3/turbo/pro/image-to-video": _quoted(
+        "For every second of video you generate, you will be charged $0.14. For example, a 5s video will cost $0.70.",
+    ),
+    "fal-ai/kling-video/v3/turbo/standard/image-to-video": _quoted(
+        "For every second of video you generate, you will be charged $0.112. For example, a 5s video will cost $0.56",
+    ),
+    "fal-ai/kling-video/v3/pro/text-to-video": _quoted(
+        "For every second of video you generated, you will be charged $0.112 (audio off) or $0.168 (audio on), if voice control is used while generating audio you will be charged $0.196. For example, a 5s video with audio on and voice control will cost $0.98",
+    ),
+    "fal-ai/kling-video/v3/standard/text-to-video": _quoted(
+        "For every second of video you generated, you will be charged $0.084 (audio off) or $0.126 (audio on), if voice control is used while generating audio you will be charged $0.154. For example, a 5s video with audio on and voice control will cost $0.77",
+    ),
+    "fal-ai/kling-video/v3/4k/text-to-video": _quoted(
+        "For every second of video you generated, you will be charged $0.42 regardless of whether audio is on or off. For example, a 5s video will cost $2.10.",
+    ),
+    "fal-ai/kling-video/v3/turbo/pro/text-to-video": _quoted(
+        "For every second of video you generate, you will be charged $0.14 . For example, a 5s video will cost $0.70.",
+    ),
+    "fal-ai/kling-video/v3/turbo/standard/text-to-video": _quoted(
+        "For every second of video you generate, you will be charged $0.112 . For example, a 5s video will cost $0.56.",
+    ),
+    "fal-ai/kling-video/v3/pro/motion-control": _unpriced(
+        "no published per-call price", NO_PUBLISHED_PRICE,
+    ),
+    "fal-ai/kling-video/v3/standard/motion-control": _unpriced(
+        "no published per-call price", NO_PUBLISHED_PRICE,
+    ),
+    "kling/v4/image-to-video": _quoted(
+        "Video costs $0.157 per second at 720p and $0.235 per second at 1080p.",
+    ),
+    "kling/v4/text-to-video": _quoted(
+        "Video costs $0.157 per second at 720p and $0.235 per second at 1080p.",
+    ),
+    "kling/v4/reference-to-video": _quoted(
+        "Video costs $0.157 per second at 720p and $0.235 per second at 1080p. With video references or video elements, it costs $0.094 per second at 720p and $0.141 per second at 1080p, billed on the input plus output length (minimum 2x the output).",
+    ),
+    "kling/v4/video-to-video/edit": _quoted(
+        "Video costs $0.094 per second at 720p and $0.141 per second at 1080p, billed on the input plus output length (minimum 2x the output).",
+    ),
+    "bytedance/seedance-2.5/us/image-to-video": _quoted(
+        "For 480p, your request will cost roughly $0.2205 per second of generated video, for 720p, you will be charged roughly $0.4730 per second of generated video, and for 1080p, roughly $1.164 per second of generated video.",
+    ),
+    "bytedance/seedance-2.5/us/text-to-video": _quoted(
+        "For 480p, your request will cost roughly $0.2205 per second of generated video, for 720p, you will be charged roughly $0.4730 per second of generated video, and for 1080p, roughly $1.164 per second of generated video.",
+    ),
+    "bytedance/seedance-2.5/us/reference-to-video": _quoted(
+        "For 480p, your request will cost roughly $0.2205 per second of generated video, for 720p, you will be charged roughly $0.4730 per second of generated video, and for 1080p, roughly $1.164 per second of generated video.",
+    ),
+    "minimax/h3/image-to-video": _quoted(
+        "Video costs $0.05 per second at 480p, $0.06 per second at 768p, $0.13 per second at 2K and $0.16 per second at 4K.",
+    ),
+    "minimax/h3-max/image-to-video": _quoted(
+        "Video costs $0.0325 per second at 480p, $0.052 per second at 768p, and $0.104 per second at 1080p. Note: these are promotional rates, 35% off for a limited time. The discount ends October 31, after which 480p is $0.05/second, 768p is $0.08/second, and 1080p is $0.16/second.",
+    ),
+    "minimax/h3-max-turbo/image-to-video": _quoted(
+        "Video costs $0.01625 per second at 480p, $0.026 per second at 768p, and $0.052 per second at 1080p. Note: these are promotional rates, 35% off for a limited time. The discount ends October 31, after which 480p is $0.025/second, 768p is $0.04/second, and 1080p is $0.08/second.",
+    ),
+    "minimax/h3/text-to-video": _quoted(
+        "Video costs $0.05 per second at 480p, $0.06 per second at 768p, $0.13 per second at 2K and $0.16 per second at 4K.",
+    ),
+    "minimax/h3-max/text-to-video": _quoted(
+        "Video costs $0.0325 per second at 480p, $0.052 per second at 768p, and $0.104 per second at 1080p. Note: these are promotional rates, 35% off for a limited time. The discount ends October 31, after which 480p is $0.05/second, 768p is $0.08/second, and 1080p is $0.16/second.",
+    ),
+    "minimax/h3-max-turbo/text-to-video": _quoted(
+        "Video costs $0.01625 per second at 480p, $0.026 per second at 768p, and $0.052 per second at 1080p. Note: these are promotional rates, 35% off for a limited time. The discount ends October 31, after which 480p is $0.025/second, 768p is $0.04/second, and 1080p is $0.08/second.",
+    ),
+    "minimax/h3/reference-to-video": _quoted(
+        "Video costs $0.05 per second at 480p, $0.06 per second at 768p, $0.13 per second at 2K and $0.16 per second at 4K; the first 5 reference images are free and each additional image costs $0.08.",
+    ),
+    "minimax/h3-max/reference-to-video": _quoted(
+        "Billing uses the requested output duration at $0.05 per second for 480p, $0.08 for 768p, and $0.16 for 1080p.",
+    ),
+    "minimax/h3/reference-to-video/lora": _quoted(
+        "Video costs $0.0625 per second at 480p, $0.075 per second at 768p, $0.1625 per second at 2K and $0.20 per second at 4K.",
+    ),
+    "minimax/h3-max/lip-sync/image-to-video": _quoted(
+        "Billing is calculated per second of generated video. Video costs $0.05 per second at 480p, $0.08 per second at 768p, $0.16 per second at 1080p, and $0.32 per second at 2K. A 1.2x multiplier is added to videos over 15 seconds. A 5-second video at 768p costs $0.40.",
+    ),
+    "minimax/h3-max/camera-controls": _quoted(
+        "Video costs $0.0325 per second at 480p, $0.052 per second at 768p, and $0.104 per second at 1080p. Note: these are promotional rates, 35% off for a limited time. The discount ends October 31, after which 480p is $0.05/second, 768p is $0.08/second, and 1080p is $0.16/second.",
+    ),
+    "minimax/h3-max/extend-video": _quoted(
+        "Billing is calculated per second of generated video, plus reference input charges beyond the included allowance. Video costs $0.05 per second at 480p, $0.08 per second at 768p, $0.16 per second at 1080p, and $0.32 per second at 2K.",
+    ),
+    "minimax/h3-max-turbo/extend-video": _quoted(
+        "Billing is calculated per second of newly generated video. Your request will cost $0.025 per second at 480p, $0.04 per second at 768p, $0.08 per second at 1080p, and $0.16 per second at 2K.",
+    ),
+    "minimax/h3-max/reframe-video": _quoted(
+        "Billing is calculated per second of video generated at $0.05 for 480p or $0.08 for 768p. For short videos, billing follows the output duration; a 5-second video at 768p costs $0.40.",
+    ),
+    "minimax/h3-max/recast": _quoted(
+        "Your request will cost $0.30 per second of output video at 768p or $0.45 per second at 1080p. Reference images are included at no additional charge.",
+    ),
+    "minimax/h3-max/3d-to-video": _quoted(
+        "For every second of video you generate you will be charged $0.05 at 480p, $0.08 at 768p or $0.16 at 1080p (minimum 5 seconds), plus reference token usage for your input video and images, the same as H3 Max Reference to Video.",
+    ),
+    "fal-ai/minimax/video-01-director": _unpriced(
+        "no published per-call price", NO_PUBLISHED_PRICE,
+    ),
+    "fal-ai/minimax/video-01-director/image-to-video": _unpriced(
+        "no published per-call price", NO_PUBLISHED_PRICE,
+    ),
+
     # ---- image edit / generate, priced per image -------------------------
     "xai/grok-imagine-image/v2.0/edit": _priced(
         "$0.04 (low) / $0.06 (medium) per 1K image, $0.06 / $0.08 per 2K image, plus $0.01 per input image",
@@ -272,8 +417,9 @@ PRICES = {
         _nano_banana_2_edit,
     ),
     "google/nano-banana-2.1/edit": _unpriced(
-        "price not verified here - 2.0 is $0.08 per image, but 2.1 was not measured",
-        NO_PUBLISHED_PRICE,
+        "token-billed: text/thinking $1.764 per 1M in, $8.823 out; images "
+        "$1.764 per 1M in, $35.294 out - resolution drives the cost, 1K default",
+        TOKEN_BILLED,
     ),
     "fal-ai/nano-banana-pro/edit": _priced(
         "$0.15 per image (4K charged at double), +$0.015 with web search",
@@ -292,7 +438,7 @@ PRICES = {
         _seedream_v5_pro_edit,
     ),
     "fal-ai/bria/background/remove": _priced(
-        "$0.018 per image",
+        "$0.018 per image, $0.03 with a prompt",
         _flat_per_output_image(0.018),
     ),
     "fal-ai/sam-3/image": _priced(
@@ -377,7 +523,8 @@ PRICES = {
         "no published per-call price", NO_PUBLISHED_PRICE,
     ),
     "ideogram/v4.5/edit": _priced(
-        "$0.22 per image at quality high, $0.06 at medium",
+        "$0.22 per image at quality high, $0.06 at medium "
+        "(fal also lists $0.03 low and $0.008 very low)",
         _ideogram_v45_edit,
     ),
     "fal-ai/ideogram/upscale": _unpriced(
@@ -429,6 +576,73 @@ PRICES = {
 # Which fal endpoint(s) each node class calls. Used to show the price note on
 # the node itself. A node that can pick between endpoints lists all of them.
 NODE_ENDPOINTS = {
+    # ---- video generation -------------------------------
+    "SupersideKlingV3ImageToVideoNode": [
+        "fal-ai/kling-video/v3/pro/image-to-video",
+        "fal-ai/kling-video/v3/standard/image-to-video",
+        "fal-ai/kling-video/v3/4k/image-to-video",
+        "fal-ai/kling-video/v3/turbo/pro/image-to-video",
+        "fal-ai/kling-video/v3/turbo/standard/image-to-video",
+    ],
+    "SupersideKlingV3MotionControlNode": [
+        "fal-ai/kling-video/v3/pro/motion-control",
+        "fal-ai/kling-video/v3/standard/motion-control",
+    ],
+    "SupersideKlingV3TextToVideoNode": [
+        "fal-ai/kling-video/v3/pro/text-to-video",
+        "fal-ai/kling-video/v3/standard/text-to-video",
+        "fal-ai/kling-video/v3/4k/text-to-video",
+        "fal-ai/kling-video/v3/turbo/pro/text-to-video",
+        "fal-ai/kling-video/v3/turbo/standard/text-to-video",
+    ],
+    "SupersideKlingV4EditVideoNode": ["kling/v4/video-to-video/edit"],
+    "SupersideKlingV4ImageToVideoNode": ["kling/v4/image-to-video"],
+    "SupersideKlingV4ReferenceToVideoNode": ["kling/v4/reference-to-video"],
+    "SupersideKlingV4TextToVideoNode": ["kling/v4/text-to-video"],
+    "SupersideMiniMaxH33DToVideoNode": ["minimax/h3-max/3d-to-video"],
+    "SupersideMiniMaxH3CameraControlsNode": ["minimax/h3-max/camera-controls"],
+    "SupersideMiniMaxH3ExtendVideoNode": [
+        "minimax/h3-max/extend-video",
+        "minimax/h3-max-turbo/extend-video",
+    ],
+    "SupersideMiniMaxH3ImageToVideoNode": [
+        "minimax/h3/image-to-video",
+        "minimax/h3-max/image-to-video",
+        "minimax/h3-max-turbo/image-to-video",
+    ],
+    "SupersideMiniMaxH3LipSyncNode": ["minimax/h3-max/lip-sync/image-to-video"],
+    "SupersideMiniMaxH3RecastNode": ["minimax/h3-max/recast"],
+    "SupersideMiniMaxH3ReferenceToVideoLoraNode": ["minimax/h3/reference-to-video/lora"],
+    "SupersideMiniMaxH3ReferenceToVideoNode": [
+        "minimax/h3/reference-to-video",
+        "minimax/h3-max/reference-to-video",
+    ],
+    "SupersideMiniMaxH3ReframeVideoNode": ["minimax/h3-max/reframe-video"],
+    "SupersideMiniMaxH3TextToVideoNode": [
+        "minimax/h3/text-to-video",
+        "minimax/h3-max/text-to-video",
+        "minimax/h3-max-turbo/text-to-video",
+    ],
+    "SupersideMiniMaxVideo01DirectorNode": [
+        "fal-ai/minimax/video-01-director",
+        "fal-ai/minimax/video-01-director/image-to-video",
+    ],
+    "SupersideSeedance25ImageToVideoNode": ["bytedance/seedance-2.5/us/image-to-video"],
+    "SupersideSeedance25ReferenceToVideoNode": ["bytedance/seedance-2.5/us/reference-to-video"],
+    "SupersideSeedance25TextToVideoNode": ["bytedance/seedance-2.5/us/text-to-video"],
+    "SupersideWan30ImageToVideoNode": [
+        "alibaba/wan-3.0/image-to-video",
+        "alibaba/wan-3.0-prime/image-to-video",
+    ],
+    "SupersideWan30ReferenceToVideoNode": [
+        "alibaba/wan-3.0/reference-to-video",
+        "alibaba/wan-3.0-prime/reference-to-video",
+    ],
+    "SupersideWan30TextToVideoNode": [
+        "alibaba/wan-3.0/text-to-video",
+        "alibaba/wan-3.0-prime/text-to-video",
+    ],
+
     "SupersideAnyLLMTextNode": ["openrouter/router", "fal-ai/any-llm"],
     "SupersideAnyLLMVisionNode": ["openrouter/router/vision", "fal-ai/any-llm/vision"],
     "SupersideBriaBackgroundReplaceNode": ["fal-ai/bria/background/replace"],
@@ -485,12 +699,60 @@ NODE_ENDPOINTS = {
 # list means fal published no price text for that endpoint id at capture time
 # (its note, where there is one, came from the model page's own cost table).
 PUBLISHED_AMOUNTS = {
+    'openai/gpt-image-2.5/sunburst/edit': ['$0.0001', '$1.25', '$10.00', '$2.00', '$30.00', '$5.00', '$8.00'],
+    'ideogram/v4.5/edit': ['$0.008', '$0.03', '$0.06', '$0.22'],
+    'google/nano-banana-2.1/edit': ['$1.764', '$35.294', '$8.823'],
+    # ---- video generation, captured 2026-10-30 ----------------------
+    'alibaba/wan-3.0/image-to-video': ['$0.05', '$0.10', '$0.20', '$0.50'],
+    'alibaba/wan-3.0-prime/image-to-video': ['$0.068', '$0.14', '$0.28', '$0.70'],
+    'alibaba/wan-3.0/text-to-video': ['$0.05', '$0.10', '$0.20', '$0.50'],
+    'alibaba/wan-3.0-prime/text-to-video': ['$0.068', '$0.14', '$0.28', '$0.70'],
+    'alibaba/wan-3.0/reference-to-video': ['$0.05', '$0.10', '$0.20', '$0.50'],
+    'alibaba/wan-3.0-prime/reference-to-video': ['$0.068', '$0.14', '$0.28', '$0.70'],
+    'fal-ai/kling-video/v3/pro/image-to-video': ['$0.112', '$0.168', '$0.196', '$0.98'],
+    'fal-ai/kling-video/v3/standard/image-to-video': ['$0.084', '$0.126', '$0.154', '$0.77'],
+    'fal-ai/kling-video/v3/4k/image-to-video': ['$0.42', '$2.10'],
+    'fal-ai/kling-video/v3/turbo/pro/image-to-video': ['$0.14', '$0.70'],
+    'fal-ai/kling-video/v3/turbo/standard/image-to-video': ['$0.112', '$0.56'],
+    'fal-ai/kling-video/v3/pro/text-to-video': ['$0.112', '$0.168', '$0.196', '$0.98'],
+    'fal-ai/kling-video/v3/standard/text-to-video': ['$0.084', '$0.126', '$0.154', '$0.77'],
+    'fal-ai/kling-video/v3/4k/text-to-video': ['$0.42', '$2.10'],
+    'fal-ai/kling-video/v3/turbo/pro/text-to-video': ['$0.14', '$0.70'],
+    'fal-ai/kling-video/v3/turbo/standard/text-to-video': ['$0.112', '$0.56'],
+    'fal-ai/kling-video/v3/pro/motion-control': [],
+    'fal-ai/kling-video/v3/standard/motion-control': [],
+    'kling/v4/image-to-video': ['$0.157', '$0.235'],
+    'kling/v4/text-to-video': ['$0.157', '$0.235'],
+    'kling/v4/reference-to-video': ['$0.094', '$0.141', '$0.157', '$0.235'],
+    'kling/v4/video-to-video/edit': ['$0.094', '$0.141'],
+    'bytedance/seedance-2.5/us/image-to-video': ['$0.0214', '$0.0234', '$0.2205', '$0.4730', '$1.164'],
+    'bytedance/seedance-2.5/us/text-to-video': ['$0.0214', '$0.0234', '$0.2205', '$0.4730', '$1.164'],
+    'bytedance/seedance-2.5/us/reference-to-video': ['$0.0214', '$0.0234', '$0.2205', '$0.2838', '$0.4730', '$1.164'],
+    'minimax/h3/image-to-video': ['$0.05', '$0.06', '$0.13', '$0.16'],
+    'minimax/h3-max/image-to-video': ['$0.0325', '$0.05', '$0.052', '$0.08', '$0.104', '$0.16'],
+    'minimax/h3-max-turbo/image-to-video': ['$0.01625', '$0.025', '$0.026', '$0.04', '$0.052', '$0.08'],
+    'minimax/h3/text-to-video': ['$0.05', '$0.06', '$0.13', '$0.16'],
+    'minimax/h3-max/text-to-video': ['$0.0325', '$0.05', '$0.052', '$0.08', '$0.104', '$0.16'],
+    'minimax/h3-max-turbo/text-to-video': ['$0.01625', '$0.025', '$0.026', '$0.04', '$0.052', '$0.08'],
+    'minimax/h3/reference-to-video': ['$0.05', '$0.06', '$0.08', '$0.13', '$0.16'],
+    'minimax/h3-max/reference-to-video': ['$0.02', '$0.02048', '$0.05', '$0.08', '$0.16', '$0.40', '$0.42048'],
+    'minimax/h3/reference-to-video/lora': ['$0.0625', '$0.075', '$0.1625', '$0.20'],
+    'minimax/h3-max/lip-sync/image-to-video': ['$0.05', '$0.08', '$0.16', '$0.32', '$0.40', '$2.88'],
+    'minimax/h3-max/camera-controls': ['$0.0325', '$0.05', '$0.052', '$0.08', '$0.104', '$0.16'],
+    'minimax/h3-max/extend-video': ['$0.02', '$0.05', '$0.08', '$0.16', '$0.32'],
+    'minimax/h3-max-turbo/extend-video': ['$0.025', '$0.04', '$0.08', '$0.16'],
+    'minimax/h3-max/reframe-video': ['$0.05', '$0.08', '$0.40'],
+    'minimax/h3-max/recast': ['$0.30', '$0.45'],
+    'minimax/h3-max/3d-to-video': ['$0.02', '$0.04', '$0.05', '$0.08', '$0.16', '$0.96'],
+    'fal-ai/minimax/video-01-director': [],
+    'fal-ai/minimax/video-01-director/image-to-video': [],
+
     'bria/replace-background': [],
     'bytedance/seedream/v5/pro/edit': ['$0.0045', '$0.0675', '$0.135'],
-    'fal-ai/bria/background/remove': [],
+    'fal-ai/bria/background/remove': ['$0.018', '$0.03'],
     'fal-ai/bria/background/replace': [],
     'fal-ai/bytedance/seedance/v1/lite/reference-to-video': [],
-    'fal-ai/bytedance/seedance/v1/pro/image-to-video': ['$0.62', '$2.5'],
+    'fal-ai/bytedance/seedance/v1/pro/image-to-video': ['$0.62', '$2.50'],
     'fal-ai/bytedance/seedream/v4.5/edit': [],
     'fal-ai/crystal-upscaler': [],
     'fal-ai/florence-2-large/caption-to-phrase-grounding': [],

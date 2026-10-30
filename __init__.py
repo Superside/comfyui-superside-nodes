@@ -324,6 +324,25 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideArchitecturalStylePromptNode": "Superside Architectural Style Dial",
 }
 
+# The fal video models (Wan 3.0, Kling 3 and 4, Seedance 2.5, the MiniMax H3
+# family and the Video 01 Director) are built from a generated field table
+# instead of one near-identical file per node - see modules/video_gen_base.py.
+# Registering them here, above the pricing pass, means they pick up their price
+# notes like every other node.
+try:
+    try:
+        from .modules.video_gen_base import build_all as _build_video_nodes
+    except ImportError:
+        from modules.video_gen_base import build_all as _build_video_nodes
+
+    _video_classes, _video_display = _build_video_nodes()
+    NODE_CLASS_MAPPINGS.update(_video_classes)
+    NODE_DISPLAY_NAME_MAPPINGS.update(_video_display)
+except Exception as _exc:
+    print("[comfyui-superside-nodes] the fal video nodes failed to load, so "
+          "none of them will appear: %s" % _exc)
+
+
 # Show each node's fal.ai price on the node itself. ComfyUI renders DESCRIPTION
 # as the node's tooltip, so appending the price there puts it one hover away
 # without touching every node file. Nodes that make no fal call are untouched.
