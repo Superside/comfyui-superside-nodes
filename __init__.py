@@ -34,10 +34,6 @@ try:
     from .modules.nano_banana_v21_edit_node import SupersideNanoBananaV21EditNode
     from .modules.normalize_product_node import SupersideNormalizeProductNode
     from .modules.sku_reference_sheet_node import SupersideSkuReferenceSheetNode
-    from .modules.tile_upscale_node import (
-        SupersideTileUpscaleNode,
-        SupersideSaveImageWithDPINode,
-    )
     from .modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from .modules.prompt_box_node import SupersidePromptBoxNode
     from .modules.prompt_splitter_node import SupersidePromptSplitterNode
@@ -122,10 +118,6 @@ except ImportError:
     from modules.nano_banana_v21_edit_node import SupersideNanoBananaV21EditNode
     from modules.normalize_product_node import SupersideNormalizeProductNode
     from modules.sku_reference_sheet_node import SupersideSkuReferenceSheetNode
-    from modules.tile_upscale_node import (
-        SupersideTileUpscaleNode,
-        SupersideSaveImageWithDPINode,
-    )
     from modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from modules.prompt_box_node import SupersidePromptBoxNode
     from modules.prompt_splitter_node import SupersidePromptSplitterNode
@@ -201,8 +193,6 @@ NODE_CLASS_MAPPINGS = {
     "SupersideNanoBananaV21EditNode": SupersideNanoBananaV21EditNode,
     "SupersideNormalizeProductNode": SupersideNormalizeProductNode,
     "SupersideSkuReferenceSheetNode": SupersideSkuReferenceSheetNode,
-    "SupersideTileUpscaleNode": SupersideTileUpscaleNode,
-    "SupersideSaveImageWithDPINode": SupersideSaveImageWithDPINode,
     "SupersidePASDUpscalerNode": SupersidePASDUpscalerNode,
     "SupersidePromptBoxNode": SupersidePromptBoxNode,
     "SupersidePromptSplitterNode": SupersidePromptSplitterNode,
@@ -280,8 +270,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideNanoBananaV21EditNode": "Superside Nano Banana 2.1 Edit",
     "SupersideNormalizeProductNode": "Superside Normalize Product",
     "SupersideSkuReferenceSheetNode": "Superside SKU Reference Sheet",
-    "SupersideTileUpscaleNode": "Superside Tile Upscale",
-    "SupersideSaveImageWithDPINode": "Superside Save Image With DPI (TIFF/PNG/JPEG)",
     "SupersidePASDUpscalerNode": "Superside PASD Upscaler Node",
     "SupersidePromptBoxNode": "Superside Prompt Box",
     "SupersidePromptSplitterNode": "Superside Prompt Splitter",
