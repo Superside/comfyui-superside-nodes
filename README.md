@@ -675,6 +675,8 @@ In-house reimplementations of core ComfyUI nodes and a handful of small third-pa
 | `SupersideLoadImagesFromFolderNode` | `Load Images From Folder (KJ)` | comfyui-kjnodes |
 | `SupersideTextPreviewNode` | `Text Preview Node` | superside-utility-nodes (sibling package) |
 
+`SupersideGrowMaskWithBlurNode` grows or shrinks by more than 8 px in one pass instead of one pixel per step, so a large `expand` costs the same as a small one: `expand 4096` on a 2048 px mask takes under a second instead of about two minutes. The output is identical to the step-by-step version (checked on 784 grey and binary cases, both kernels, both signs).
+
 ## Package layout
 
 ```
