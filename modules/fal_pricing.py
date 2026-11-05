@@ -497,6 +497,10 @@ PRICES = {
         "token-billed: text $5.00/1M in and $10.00/1M out, image $8.00/1M in and $30.00/1M out; the quality parameter moves this a lot",
         TOKEN_BILLED,
     ),
+    "openai/gpt-image-2.6/sunburst/edit": _unpriced(
+        "token-billed: text $5.00/1M in and $10.00/1M out, image $8.00/1M in and $30.00/1M out; same rates as 2.5, and the quality parameter moves this a lot",
+        TOKEN_BILLED,
+    ),
     "google/gemini-omni-flash/edit": _unpriced(
         "token-billed: $1.875 per 1M input tokens, $21.875 per 1M output tokens",
         TOKEN_BILLED,
@@ -659,6 +663,7 @@ NODE_ENDPOINTS = {
     "SupersideGeminiOmniFlashEditNode": ["google/gemini-omni-flash/edit"],
     "SupersideGPTImage2EditNode": ["openai/gpt-image-2/edit"],
     "SupersideGPTImage25SunburstEditNode": ["openai/gpt-image-2.5/sunburst/edit"],
+    "SupersideGPTImage26SunburstEditNode": ["openai/gpt-image-2.6/sunburst/edit"],
     "SupersideGrokImagineImageQualityEditNode": ["xai/grok-imagine-image/quality/edit"],
     "SupersideGrokImagineImageV2EditNode": ["xai/grok-imagine-image/v2.0/edit"],
     "SupersideIdeogramUpscaleNode": ["fal-ai/ideogram/upscale"],
@@ -700,6 +705,7 @@ NODE_ENDPOINTS = {
 # (its note, where there is one, came from the model page's own cost table).
 PUBLISHED_AMOUNTS = {
     'openai/gpt-image-2.5/sunburst/edit': ['$0.0001', '$1.25', '$10.00', '$2.00', '$30.00', '$5.00', '$8.00'],
+    'openai/gpt-image-2.6/sunburst/edit': ['$0.0001', '$1.25', '$10.00', '$2.00', '$30.00', '$5.00', '$8.00'],
     'ideogram/v4.5/edit': ['$0.008', '$0.03', '$0.06', '$0.22'],
     'google/nano-banana-2.1/edit': ['$1.764', '$35.294', '$8.823'],
     # ---- video generation, captured 2026-10-30 ----------------------

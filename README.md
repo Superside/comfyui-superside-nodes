@@ -38,6 +38,11 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+**2026-11-05 - GPT Image 2.6 Sunburst Edit.** Subclasses the 2.5 node and adds
+what 2.6 brings: `reasoning_effort`, `markup_image` (annotations instead of a
+mask) and animated GIF output, whose frames come back as an image batch. Same
+token prices as 2.5.
+
 **2026-10-30 - 24 video-generation nodes: Wan 3.0, Kling 3 and 4, Seedance 2.5, MiniMax H3.**
 Built from a field table generated out of fal's published schemas rather than
 one hand-written file per model, so enums, ranges and defaults match fal and
@@ -171,6 +176,14 @@ OpenAI GPT Image 2.5 Sunburst editing (`openai/gpt-image-2.5/sunburst/edit`). Sa
 Because the endpoint takes a real `mask_url`, `mask_mode` `lock outside mask (hard)` gives a genuine masked inpaint here - the model is told which pixels it may touch, and the result is composited back inside the mask.
 - **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`-`image_6`, `mask_image`, `size`, `resolution`, `width`/`height`, `mask_mode` (off / soft / hard), `invert_mask`, `quality` (auto/low/medium/high/xhigh/max), `num_images`, `output_format`, `sync_mode`, `background`, `output_compression`
 - **Outputs:** `images` (IMAGE), `info` (STRING)
+
+#### GPT Image 2.6 Sunburst Edit (`SupersideGPTImage26SunburstEditNode`)
+OpenAI GPT Image 2.6 Sunburst editing (`openai/gpt-image-2.6/sunburst/edit`). Subclasses the 2.5 node, so everything above still applies - the same references, `mask_mode`, sizes, `quality` up to `max`, `background` and `output_compression` - at the same token prices. A bench on 2026-11-05 put 2.6 and 2.5 about level on quality for the same cost per call, so the reason to pick this node is the three things 2.6 adds, not sharper output.
+`reasoning_effort` (low/medium/high, default high) is how much the model plans before drawing, separate from `quality`. Higher helps with dense text and complex layouts and costs latency.
+`markup_image` directs an edit with annotations instead of a mask: a transparent PNG of circles, arrows and notes drawn over the first image. It must be the same size as `image_1`, and fal refuses it alongside a mask - the node raises before spending the call rather than letting the API reject it. It also needs `markup_transparency`, which takes LoadImage's MASK output directly (white where the PNG is see-through); without it the whole frame would go up as opaque paint, so the node asks for it rather than guessing.
+`output_format` gains **`gif`**, which returns an animation shaped by `frame_count` (2-16, default 9) and `frame_duration_ms` (20-2000, default 200). The frames arrive as an ordinary image batch, ready for a Save Animated WEBP or a video node. Each frame renders at `image_size`, so a large size times a high count can blow the request's pixel budget; the two frame controls are only sent when the format is `gif`.
+- **Inputs:** `prompt`, `image_1`, `api_key` · optional: `image_2`-`image_6`, `mask_image`, `size`, `resolution`, `width`/`height`, `mask_mode` (off / soft / hard), `invert_mask`, `quality` (auto/low/medium/high/xhigh/max), `num_images`, `output_format` (png/jpeg/webp/gif), `sync_mode`, `background`, `output_compression`, `reasoning_effort`, `markup_image`, `markup_transparency`, `frame_count`, `frame_duration_ms`
+- **Outputs:** `images` (IMAGE - a batch of frames when the format is `gif`), `info` (STRING)
 
 #### Grok Imagine Image Quality Edit (`SupersideGrokImagineImageQualityEditNode`)
 xAI Grok Imagine editing, up to 3 reference images, returns the model's revised prompt.
