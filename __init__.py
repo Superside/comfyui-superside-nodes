@@ -38,6 +38,7 @@ try:
     from .modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from .modules.prompt_box_node import SupersidePromptBoxNode
     from .modules.prompt_splitter_node import SupersidePromptSplitterNode
+    from .modules.reverse_video_node import SupersideReverseVideoNode
     from .modules.resize_long_side_node import SupersideResizeLongSideNode
     from .modules.resize_to_match_node import SupersideResizeToMatchNode
     from .modules.sam_3_region_selector_node import SupersideSAM3RegionSelectorNode
@@ -123,6 +124,7 @@ except ImportError:
     from modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from modules.prompt_box_node import SupersidePromptBoxNode
     from modules.prompt_splitter_node import SupersidePromptSplitterNode
+    from modules.reverse_video_node import SupersideReverseVideoNode
     from modules.resize_long_side_node import SupersideResizeLongSideNode
     from modules.resize_to_match_node import SupersideResizeToMatchNode
     from modules.sam_3_region_selector_node import SupersideSAM3RegionSelectorNode
@@ -200,6 +202,7 @@ NODE_CLASS_MAPPINGS = {
     "SupersidePromptBoxNode": SupersidePromptBoxNode,
     "SupersidePromptSplitterNode": SupersidePromptSplitterNode,
     "SupersideResizeLongSideNode": SupersideResizeLongSideNode,
+    "SupersideReverseVideoNode": SupersideReverseVideoNode,
     "SupersideResizeToMatchNode": SupersideResizeToMatchNode,
     "SupersideSAM3RegionSelectorNode": SupersideSAM3RegionSelectorNode,
     "SupersideSeedanceLiteImageToVideoNode": SupersideSeedanceLiteImageToVideoNode,
@@ -278,6 +281,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersidePromptBoxNode": "Superside Prompt Box",
     "SupersidePromptSplitterNode": "Superside Prompt Splitter",
     "SupersideResizeLongSideNode": "Superside Resize (Long Side)",
+    "SupersideReverseVideoNode": "Superside Reverse Video",
     "SupersideResizeToMatchNode": "Superside Resize To Match",
     "SupersideSAM3RegionSelectorNode": "Superside SAM 3 Smart Region Selector",
     "SupersideSeedanceLiteImageToVideoNode": "Superside Seedance Lite Image-to-Video",

@@ -38,6 +38,10 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+**2026-11-06 - Reverse Video.** Plays a clip backwards, VIDEO in and VIDEO out,
+so frame rate, audio and colour space survive. Audio can be reversed with the
+picture, left alone or dropped. Runs locally, no API key.
+
 **2026-11-05 - GPT Image 2.6 Sunburst Edit.** Subclasses the 2.5 node and adds
 what 2.6 brings: `reasoning_effort`, `markup_image` (annotations instead of a
 mask) and animated GIF output, whose frames come back as an image batch. Same
@@ -297,6 +301,16 @@ Prompt-driven background replacement with realistic lighting/perspective, using 
 Bria's newer, richer generative background-replace model (fal endpoint `fal-ai/bria/background/replace`), separate from the V2 above. Adds reference-image guidance, prompt refinement, a fast/quality toggle, and multiple variations per run.
 - **Inputs:** `image`, `prompt`, `api_key` · optional: `ref_image` (IMAGE - reference background to guide the look), `negative_prompt`, `num_images` (1-4), `refine_prompt` (default ON), `fast` (ON = faster, OFF = higher quality), `seed` (-1 = random), `sync_mode`
 - **Outputs:** `image` (IMAGE), `info` (STRING - result URL)
+
+### Video utilities (no API key needed)
+
+#### Reverse Video (`SupersideReverseVideoNode`)
+Plays a video backwards - the last frame becomes the first. Local work: no API call, nothing to pay for.
+It takes and returns a **VIDEO**, not an image batch, which is the point: a batch would drop the frame rate and the audio, and the SaveVideo downstream would have to be told the fps again by hand. The source's bit depth and colour space are carried across too, so reversing an HDR clip does not quietly flatten it to 8-bit sRGB.
+`audio` decides what happens to the sound, because there is no one right answer. `reverse` (default) flips it with the picture so it stays in sync - good for a reversed action, though speech becomes gibberish. `keep` leaves the original track over reversed picture, so the two no longer line up. `drop` removes it. Only the time axis is flipped, never the channels, so stereo does not swap left and right.
+If the source carries an alpha channel it is lost, because ComfyUI's encoder writes only images and audio - the node logs a warning rather than handing back a video that quietly lost its transparency.
+- **Inputs:** `video` · optional: `audio` (reverse / keep / drop)
+- **Outputs:** `video` (VIDEO), `info` (STRING - frame count, fps, duration and what happened to the audio)
 
 ### Video-to-video
 
