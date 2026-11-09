@@ -385,16 +385,32 @@ class SupersideSkuReferenceSheetNode:
     # the temple leaves the front) and on the temple itself, so the corner is shown from three angles and the
     # temple whole. Boxes are fractions of each view's product box; the three-quarter one is measured per product.
     NEAR_JOINT_DEFAULT = (0.40, 0.22, 0.74, 0.78)
+    SHADOW_PEAK = 0.40          # a column run whose darkest pixel stays under 40 % of the frame's contrast is shadow
+
+    def _solid_mask(self, product, threshold):
+        """The product without its floor shadow. Catalogue shots with a soft shadow ("_shad_") pass the background
+        threshold in a grey band under the frame (contrast ~30-75 against ~200+ for the frame), and that band read
+        as the near temple and stretched the joint and the frame height (Clearly Batch 5, 2026-11-09). Per column,
+        a run of product pixels is kept only if it reaches SHADOW_PEAK of the frame's contrast somewhere, so clear
+        acetate stays (its run holds the dark edge) and pure shadow goes. Frames without a shadow are unchanged."""
+        arr = np.asarray(product.convert("RGB")).astype(np.int16)
+        d = np.abs(arr - self._backdrop(arr)).max(2)
+        m = d > threshold
+        if not m.any():
+            return m
+        strong = max(threshold, self.SHADOW_PEAK * float(np.percentile(d[m], 99)))
+        out = np.zeros_like(m)
+        for x in np.nonzero(m.any(0))[0]:
+            r = np.nonzero(m[:, x])[0]
+            for run in np.split(r, np.nonzero(np.diff(r) > 1)[0] + 1):
+                if d[run, x].max() >= strong:
+                    out[run, x] = True
+        return out
 
     def _near_joint(self, product, threshold):
         """The near front-to-temple joint on a three-quarter view (temple running to the right): the right end of
         the last run of tall columns (the front), ignoring the ear tip. -> (x1, y1, x2, y2) fractions."""
-        arr = np.asarray(product.convert("RGB")).astype(np.int16)
-        h, w = arr.shape[:2]
-        p = max(4, min(h, w) // 40)
-        corners = np.concatenate([arr[:p, :p].reshape(-1, 3), arr[:p, -p:].reshape(-1, 3),
-                                  arr[-p:, :p].reshape(-1, 3), arr[-p:, -p:].reshape(-1, 3)])
-        m = np.abs(arr - np.median(corners, axis=0)).max(2) > threshold
+        m = self._solid_mask(product, threshold)
         H, W = m.shape
         ext = np.zeros(W)
         for x in range(W):
@@ -423,8 +439,7 @@ class SupersideSkuReferenceSheetNode:
     def _temple_box(self, product, threshold):
         """The temple alone on the side view (front on the left): from just before the front ends to the tip,
         cut tight to the temple's own rows, so it is shown larger than in the full side view."""
-        arr = np.asarray(product.convert("RGB")).astype(np.int16)
-        m = np.abs(arr - self._backdrop(arr)).max(2) > threshold
+        m = self._solid_mask(product, threshold)
         H, W = m.shape
         ext = np.array([(np.nonzero(c)[0].max() - np.nonzero(c)[0].min()) if c.any() else 0 for c in m.T])
         tall = ext >= 0.55 * np.percentile(ext[ext > 0], 95)
@@ -567,8 +582,7 @@ class SupersideSkuReferenceSheetNode:
     # close-ups, last, with large dark captions.
     def _frame_height(self, product, threshold):
         """The frame's height in a view: the tallest columns of the product (the rim; temples are thin)."""
-        arr = np.asarray(product.convert("RGB")).astype(np.int16)
-        m = np.abs(arr - self._backdrop(arr)).max(2) > threshold
+        m = self._solid_mask(product, threshold)
         cols = m.any(0)
         if not cols.any():
             return float(product.height)
