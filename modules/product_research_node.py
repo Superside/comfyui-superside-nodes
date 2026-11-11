@@ -184,6 +184,9 @@ class SupersideProductResearchNode(SupersideFalNode, APIClientMixin):
         def tag_and_sort():
             """Tag what is new; photos that turned out not to show the product go to their own folder, out of the tags."""
             tags = core.tag_images(call, folder, product, tag_model)
+            for note in core.lock_variant(call, folder, product, tags, llm_model, had_photo=pil is not None):
+                if note not in report:
+                    report.append(note)
             strangers = [k for k, t in tags.items() if t.get("view") == "not the product"]
             if strangers:
                 os.makedirs(os.path.join(folder, "not_product"), exist_ok=True)
@@ -199,7 +202,8 @@ class SupersideProductResearchNode(SupersideFalNode, APIClientMixin):
         # A sheet is built from categories. The ones it cannot do without and that came back empty are searched for by
         # name, once: a close-up of the controls, of the logo, the product in a hand, its accessories, the product alone.
         cats = core.categorize(folder, tags)
-        wanted = [(label, q) for label, _views, q in core.CATEGORIES if q and not cats[label]]
+        profile = core.product_profile(call, folder, product, "", llm_model)        # which conditional rules apply to it
+        wanted = [(label, q) for label, _views, q in core.CATEGORIES if q and not cats[label] and core.category_needed(label, profile)]
         if wanted and image_search:
             for label, q in wanted:
                 results, note = core.search_images(query, per_query=40, min_side=min(min_image_side, 500), patterns=(q,))
@@ -215,7 +219,7 @@ class SupersideProductResearchNode(SupersideFalNode, APIClientMixin):
             cats = core.categorize(folder, tags)
         json.dump(cats, open(os.path.join(folder, "categories.json"), "w", encoding="utf-8"), indent=1)
         report.append("by category: " + ", ".join(f"{label} {len(keys)}" for label, keys in cats.items()))
-        empty = [label for label, _v, q in core.CATEGORIES if q and not cats[label]]
+        empty = [label for label, _v, q in core.CATEGORIES if q and not cats[label] and core.category_needed(label, profile)]
         if empty:
             report.append("still no photo for: " + ", ".join(empty) + " - the sheet will cut these from a whole-product photo")
         other = sum(1 for t in tags.values() if t.get("same_product") is False)
@@ -225,6 +229,14 @@ class SupersideProductResearchNode(SupersideFalNode, APIClientMixin):
             report.append(f"{other} photos show another colour or model and are kept but not used")
         report.append(f"{len(tags)} photos tagged: " + ", ".join(f"{k} {v}" for k, v in sorted(uses.items())))
         info = core.write_info(call, folder, product, tags, "\n".join(notes)[:6000], llm_model) if tags else ""
+        report.append("profile: " + core.profile_text(profile))
+        # what the product is made of, counted (4 dials, 1 door ...): saved, and put first in the product info so every
+        # prompt that uses the info carries the counts
+        spec = core.product_spec(call, folder, product, info, tags, llm_model, notes="\n".join(notes)[:6000]) if tags else None
+        if spec and spec.get("summary"):
+            info = "COMPOSITION " + str(spec["summary"]).strip() + "\n" + info
+            open(os.path.join(folder, "product_info.txt"), "w", encoding="utf-8").write(info + "\n")
+            report.append("composition: " + str(spec["summary"])[:220])
         scene = core.write_scene(call, folder, product, info, llm_model)
 
         cands = core.candidates(tags)                       # what the sheet may use, best first ...

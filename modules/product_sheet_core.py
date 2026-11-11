@@ -57,8 +57,20 @@ def data_url(im, side=None, quality=85):
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def parse_json(text):
-    m = re.search(r"\{.*\}|\[.*\]", text or "", re.S)
+def parse_json(text, want=None):
+    """The first JSON value in a model's answer. Models add a sentence before or after it, or a second object: the
+    value is read from its first bracket and whatever follows is ignored (a greedy match broke on trailing text).
+    want=dict reads the first object even when a list comes earlier in the answer."""
+    text = text or ""
+    starts = [i for i in ((text.find("{"),) if want is dict else (text.find("{"), text.find("["))) if i >= 0]
+    if not starts:
+        raise ValueError("the model did not answer with JSON")
+    for start in sorted(starts):
+        try:
+            return json.JSONDecoder().raw_decode(text[start:])[0]
+        except ValueError:
+            continue
+    m = re.search(r"\{.*\}|\[.*\]", text, re.S)
     if not m:
         raise ValueError("the model did not answer with JSON")
     return json.loads(m.group(0))
@@ -137,6 +149,8 @@ For EACH photo answer one object:
   "not the product"
 - "angle": the angle the main product is seen from, whatever else is in the picture: "front", "3/4 left",
   "3/4 right", "side", "back", "top", or "none" if the main product is not in the picture
+- "colour": the colour / finish of the main product in two or three words ("brushed steel", "black stainless",
+  "white"); "" if the main product is not in the picture
 - "state": what is open, pulled out, removed or switched on, in a few words; "" if nothing
 - "parts": the parts clearly visible, in plain words
 - "desc": one plain sentence, at most 14 words
@@ -325,7 +339,131 @@ def download_images(urls, out_dir, max_images, min_side=700, referer=None, seen=
     return saved
 
 
-TAG_VERSION = 3          # 2 = categories for close-ups of controls and logo, in hand, back, packaging; 3 = angle (2026-11-11)
+TAG_VERSION = 4          # 2 = finer categories (2026-11-11); 3 = angle; 4 = colour of the product in each photo
+
+FINISHES = """These are colour / finish descriptions written for photos of ONE product model, which is sold in several
+finishes: {colours}
+Group the descriptions that mean the same finish. Answer one JSON object: {{"groups": [["...", "..."], ["..."]]}}"""
+
+
+def other_model_in_name(name, model):
+    """True when a file name carries another model number of the same family: 'ab70x' for an AB-60. Makers sell
+    near-identical models, shops reuse each other's pictures, and a vision model cannot tell them apart - the file
+    name often can."""
+    m = re.match(r"\s*([a-z]{2,5})[-_ ]?(\d{1,5})", (model or "").lower())
+    if not m:
+        return False
+    found = re.findall(m.group(1) + r"[-_ ]?(\d{1,5})", name.lower())
+    return bool(found) and m.group(2) not in found
+
+
+def finish_tone(path):
+    """How light the product's body is in a photo on a plain background: the 75th percentile of the luminance of the
+    product's own pixels (0-255), or None when the photo has no plain background to separate it from. A vision model
+    gave a brushed-steel and a black-stainless version of one coffee maker the same colour words; this number does
+    not - about 200 against about 110."""
+    try:
+        return tone_of(Image.open(path))
+    except Exception:
+        return None
+
+
+def tone_of(im):
+    """finish_tone for an image already in memory (a prepared panel sits on white, so it can always be measured)."""
+    im = im.convert("RGB")
+    if not plain_background(im):
+        return None
+    im = im.copy()
+    im.thumbnail((256, 256))
+    diff = ImageChops.difference(im, Image.new("RGB", im.size, im.getpixel((2, 2)))).convert("L")
+    vals = sorted(v for v, d in zip(im.convert("L").getdata(), diff.getdata()) if d > 24)
+    return vals[int(len(vals) * 0.75)] if len(vals) > 400 else None
+
+
+def reference_tone(folder, tags):
+    """The tone of the product's finish: the middle value over the whole-product photos research kept."""
+    vals = sorted(v for v in (finish_tone(os.path.join(folder, k)) for k, t in tags.items()
+                              if t.get("same_product") is not False and t.get("view") in WHOLE_VIEWS and not k.startswith("generated/"))
+                  if v is not None)
+    return vals[len(vals) // 2] if vals else None
+
+
+def lock_tone(folder, product, tags, reference=None):
+    """One finish, measured. Whole-product photos on a plain background are grouped by finish_tone; the largest group
+    (or the group of the input photo, when there is one) is the product's finish and the photos of the other groups
+    are kept but not used. Returns a note or ""."""
+    tones = {}
+    for k, t in tags.items():
+        if t.get("same_product") is not False and t.get("view") in WHOLE_VIEWS and not k.startswith("generated/"):
+            v = finish_tone(os.path.join(folder, k))
+            if v is not None:
+                tones[k] = v
+    if len(tones) < 3:
+        return ""
+    # one split, at the widest jump between neighbouring tones, and only if that jump is wide: exposure alone moves a
+    # photo by 20-30, a different finish by more (measured: 116 -> 151 between dark and brushed steel)
+    ordered = sorted(tones.items(), key=lambda kv: kv[1])
+    jump, at = max((ordered[i + 1][1] - ordered[i][1], i) for i in range(len(ordered) - 1))
+    if jump < 30:
+        return ""
+    groups = [ordered[:at + 1], ordered[at + 1:]]
+    ref = finish_tone(reference) if reference else None
+    centre = lambda g: sum(v for _k, v in g) / len(g)                               # noqa: E731
+    best = min(groups, key=lambda g: abs(centre(g) - ref)) if ref is not None else max(groups, key=len)
+    off = 0
+    for g in groups:
+        if g is not best:
+            for k, _v in g:
+                tags[k]["same_product"], tags[k]["why_not"] = False, "another finish (lighter or darker body)"
+                off += 1
+    return (f"{len(groups)} finishes measured in the whole-product photos: the {'input photo' if ref is not None else 'most common'} one "
+            f"was kept, {off} photos of the others are kept, not used") if off else ""
+
+
+def lock_variant(call, folder, product, tags, model, had_photo):
+    """One model, one finish. (1) A photo whose file name carries another model number of the same family is not this
+    product. (2) With no input photo to say which finish is meant, the finish seen in most whole-product photos becomes
+    the product's finish and the others are kept but not used. Without this a sheet built from a name alone mixed a
+    dark and a steel version of the same coffee maker, and a sheet for one oven model was built from photos of its sibling model (2026-11-11).
+    Returns notes for the report."""
+    notes, wrong = [], 0
+    for k, t in tags.items():
+        if t.get("same_product") is not False and other_model_in_name(os.path.basename(k), product.get("model", "")):
+            t["same_product"], t["why_not"] = False, "another model number in the file name"
+            wrong += 1
+    if wrong:
+        notes.append(f"{wrong} photos carry another model number in their file name: kept, not used")
+    if not had_photo:
+        seen = {}
+        for k, t in tags.items():
+            c = (t.get("colour") or "").strip().lower()
+            if c and t.get("same_product") is not False and t.get("view") in WHOLE_VIEWS:
+                seen[c] = seen.get(c, 0) + 1
+        if len(seen) > 1:
+            try:
+                groups = parse_json(llm(call, model, FINISHES.format(colours="; ".join(sorted(seen))), max_tokens=600)).get("groups") or []
+                groups = [[str(c).strip().lower() for c in g] for g in groups if g]
+                best = max(groups, key=lambda g: sum(seen.get(c, 0) for c in g))
+                others = {c for g in groups if g is not best for c in g}
+                product["colour"] = max(best, key=lambda c: seen.get(c, 0))
+                off = 0
+                for t in tags.values():
+                    if (t.get("colour") or "").strip().lower() in others and t.get("same_product") is not False:
+                        t["same_product"], t["why_not"] = False, "another finish of the product"
+                        off += 1
+                if off:
+                    notes.append(f'no input photo, {len(groups)} finishes found: "{product["colour"]}" is the most common and was kept; '
+                                 f"{off} photos of other finishes are kept, not used")
+            except Exception as e:
+                logger.warning("finishes not grouped: %s", e)
+    photo = os.path.join(folder, "images", "input_photo.jpg")
+    tone = lock_tone(folder, product, tags, reference=photo if (had_photo and os.path.exists(photo)) else None)
+    if tone:
+        notes.append(tone)
+    if notes:
+        json.dump(tags, open(os.path.join(folder, "image_tags.json"), "w", encoding="utf-8"), indent=1)
+        json.dump(product, open(os.path.join(folder, "product.json"), "w", encoding="utf-8"), indent=1)
+    return notes
 
 # what a sheet is built from, in the order of its hierarchy: label, the views that belong to it, the search that finds more
 CATEGORIES = (
@@ -340,6 +478,20 @@ CATEGORIES = (
     ("PACKAGING", ("packaging",), ""),
     ("INFOGRAPHICS", ("infographic",), ""),
 )
+
+
+def category_needed(label, profile):
+    """Whether an empty category is worth a search for this product: no controls photos for cookware, no in-hand
+    photos for an oven, no 'product alone' for a set (the set is the product)."""
+    if label == "CONTROLS CLOSE-UP":
+        return applies(profile, "has_controls")
+    if label == "IN HAND":
+        return applies(profile, "handheld")
+    if label == "ACCESSORIES":
+        return applies(profile, "has_accessories") and not (profile and profile.get("is_set"))
+    if label == "PRODUCT ALONE":
+        return not (profile and profile.get("is_set"))
+    return True
 
 
 def categorize(folder, tags):
@@ -484,6 +636,11 @@ model will use as its only reference of the product. PRODUCT: {name} ({category}
 PRODUCT INFO
 {info}
 
+PROFILE OF THIS PRODUCT: {profile}
+The profile decides which slots exist. "no" for controls: no controls slot. "no" for opens: no state slot. "no" for
+accessories and for set: no accessories slot. Not held in the hand: the in-use slot is optional, not required. A set:
+the whole views are all pieces together, then all pieces laid out apart.
+
 AVAILABLE PHOTOS (the picture shows them numbered in this same order; "generated" = made earlier by an image model):
 {listing}
 
@@ -626,6 +783,57 @@ def real_whole_photos(folder, tags, keys):
     return sorted(ok, key=lambda k: (tags[k].get("view") == "set together", -min(Image.open(os.path.join(folder, k)).size)))
 
 
+# One set of rules for every product; a small PROFILE says which conditional parts apply. Rules written per category
+# (one for hair dryers, one for ovens ...) would not scale to the next product and would end up contradicting each
+# other. The profile is about traits, not names: a coffee maker with a carafe shares more with an oven than with a
+# capsule machine. It is decided once, saved in product.json, and read by the planner, the gates and the final QA -
+# before it existed the QA asked every sheet for "the product in a hand", which an oven can never satisfy.
+PROFILE_KEYS = ("handheld", "opens", "has_controls", "has_accessories", "is_set")
+PROFILE = """PRODUCT: {name} ({category}).
+{info}
+
+Answer one JSON object, true or false for each, about the product itself:
+{{"handheld": it is held in the hand while it works (a hair dryer, a drill, a razor) - not merely carried, opened or touched,
+  "opens": it has a door, lid or drawer the user opens, or an inside the user looks into,
+  "has_controls": it has buttons, switches, dials, a display or printed control labels on it,
+  "has_accessories": it comes with separate accessories or removable parts,
+  "is_set": it IS a set of several pieces of the same kind (a cookware set, a knife set) with no single main body}}"""
+
+
+def product_profile(call, folder, product, info, model):
+    """The product's profile: read from product.json, or decided now and saved there. None if it cannot be decided -
+    then nothing is switched off and every rule applies as before."""
+    saved = product.get("profile")
+    if isinstance(saved, dict) and all(k in saved for k in PROFILE_KEYS):
+        return saved
+    try:
+        got = parse_json(llm(call, model, PROFILE.format(name=f'{product.get("brand", "")} {product.get("model", "")} {product.get("name", "")}'.strip(),
+                                                         category=product.get("category", ""), info=(info or "")[:3000]), max_tokens=300))
+        profile = {k: bool(got.get(k)) for k in PROFILE_KEYS}
+    except Exception as e:
+        logger.warning("profile not decided: %s", e)
+        return None
+    product["profile"] = profile
+    try:
+        json.dump(product, open(os.path.join(folder, "product.json"), "w", encoding="utf-8"), indent=1)
+    except Exception as e:
+        logger.warning("profile not saved: %s", e)
+    return profile
+
+
+def applies(profile, key):
+    """Whether a conditional rule applies. With no profile every rule applies."""
+    return True if not profile or key not in profile else bool(profile[key])
+
+
+def profile_text(profile):
+    if not profile:
+        return "(not decided: treat every slot as applicable)"
+    yes = lambda k: "yes" if profile.get(k) else "no"                           # noqa: E731
+    return (f"held in the hand while it works: {yes('handheld')}; opens / has an inside: {yes('opens')}; has controls: {yes('has_controls')}; "
+            f"comes with accessories: {yes('has_accessories')}; is itself a set of pieces: {yes('is_set')}")
+
+
 def candidates(tags, mode="mixed"):
     order = {"hero": 0, "view": 1, "detail": 2, "reference": 3}
     keys = [k for k, v in tags.items() if v.get("use") in order and v.get("same_product") is not False
@@ -634,7 +842,7 @@ def candidates(tags, mode="mixed"):
     return sorted(keys, key=lambda k: (tags[k].get("view") not in first, order[tags[k]["use"]], not tags[k].get("clean"), k))[:36]
 
 
-def plan_sheet(call, folder, product, tags, info, mode, max_gen, model, include_parts=False):
+def plan_sheet(call, folder, product, tags, info, mode, max_gen, model, include_parts=False, profile=None):
     """Ask the LLM to fill the slots, then enforce in code what it may and may not do. Returns (slots, notes)."""
     cands = candidates(tags, mode)
     listing = "\n".join(f'{i + 1}) {os.path.basename(k)} - {"GENERATED, " if tags[k].get("generated") else ""}{tags[k].get("view")}, '
@@ -643,18 +851,27 @@ def plan_sheet(call, folder, product, tags, info, mode, max_gen, model, include_
                         f'{tags[k].get("desc", "")}' for i, k in enumerate(cands))
     plan = parse_json(llm(call, model, PLAN.format(name=f'{product.get("brand", "")} {product.get("model", "")}'.strip(),
                                                    category=product.get("category", ""), info=info, listing=listing, mode=mode, max_gen=max_gen,
+                                                   profile=profile_text(profile),
                                                    parts_rule=("one slot per accessory, removable part or piece of a set, each alone." if include_parts else
                                                                "ONE slot showing all accessories / removable parts together, WITHOUT the product itself "
                                                                "(a clean photo of them; if the only photo that shows them also shows the product, give "
                                                                "that photo: code cuts the product away). "
                                                                "If the product IS a set of pieces: at most 3 slots, for the pieces with the most to get wrong.")),
                           [data_url(contact_sheet(folder, cands), 2400, 85)], max_tokens=5000))
+    if isinstance(plan, list):                      # the slots given bare, without the wrapping object
+        plan = {"slots": [x for x in plan if isinstance(x, dict)]}
     slots, notes, seen, new_gen, n_controls = [], [], set(), 0, 0
     whole_refs = real_whole_photos(folder, tags, cands)[:2]
     name = f'{product.get("brand", "")} {product.get("model", "")} {product.get("name", "")}'.strip()
     for sl in plan.get("slots", []):
         kind = sl.get("kind") if sl.get("kind") in KIND_ROLE else "detail"
         cap = re.sub(r"[–—]", "-", str(sl.get("caption", ""))).upper()[:40]
+        off = ("it has no controls" if kind == "controls" and not applies(profile, "has_controls") else
+               "it does not open" if kind == "state" and not applies(profile, "opens") else
+               "it has no accessories" if kind == "part" and not (applies(profile, "has_accessories") or applies(profile, "is_set")) else "")
+        if off:
+            notes.append(f"{cap}: not planned - the product profile says {off}")
+            continue
         out = {"kind": kind, "caption": cap, "role": KIND_ROLE[kind]}
         n = sl.get("photo")
         gen = sl.get("generate")
@@ -671,7 +888,7 @@ def plan_sheet(call, folder, product, tags, info, mode, max_gen, model, include_
                 and t.get("banner", "none") in ("none", None)
             closeup_photo = kind in ("controls", "detail") and t.get("view") in ("controls close-up", "logo close-up", "detail close-up") \
                 and t.get("banner", "none") != "all over"
-            if crop and (crop[2] - crop[0]) * (crop[3] - crop[1]) > 0.3:
+            if crop and (crop[2] - crop[0]) * (crop[3] - crop[1]) > (0.45 if kind == "controls" else 0.3):
                 notes.append(f"{cap}: crop refused (it covers most of the photo: that is the whole view again, not a close-up)")
                 crop, key = None, None
             if crop and not (kind in ("controls", "detail") and plain_whole):
@@ -748,10 +965,10 @@ def touches_edge(im, tol=45, run=0.12):   # tol is high on purpose: a soft floor
     return False
 
 
-def gate_report(slots, built, rows, size):
+def gate_report(slots, built, rows, size, profile=None, height=None):
     """What the finished sheet covers, as plain facts. `fatal` lists gates that must stop delivery."""
     area = lambda r: r["box"][2] * r["box"][3]                                           # noqa: E731
-    hero = sum(area(r) for r in rows if r["role"] == "hero") / float(size * size)
+    hero = sum(area(r) for r in rows if r["role"] == "hero") / float(size * (height or size))
     biggest_hero = max([area(r) for r in rows if r["role"] == "hero"] or [0])
     fatal = []
     if not any(b.get("kind") == "whole" for b in built):
@@ -767,7 +984,8 @@ def gate_report(slots, built, rows, size):
     if any(area(r) > 0.8 * biggest_hero for r in rows if r.get("kind") == "part"):
         fatal.append("G8: an accessory is drawn as large as the product itself")
     gone = [s for s in slots if s.get("missing") or s.get("dropped")]
-    required = [s["caption"] for s in gone if s["kind"] in ("controls", "use")
+    needed = [k for k, trait in (("controls", "has_controls"), ("use", "handheld")) if applies(profile, trait)]
+    required = [s["caption"] for s in gone if s["kind"] in needed
                 and not any(b.get("kind") == s["kind"] for b in built)]
     required += [s["caption"] for s in gone if s["caption"].startswith("LOGO")
                  and not any(re.search(r"LOGO|BADGE|BRAND", b.get("caption", "")) for b in built)]
@@ -944,6 +1162,165 @@ an outlet, a grille, a badge, a display) is NOT true for a picture of the whole 
 must be the clear subject of the picture and large enough to read. A hand or a person is right in a panel captioned as in use / held. Answer one JSON object {{"panels": [{{"n": 1, "ok": true, "why": ""}}]}}."""
 
 
+# ----------------------------------------------------------------------------- composition: what the product is made of, counted
+
+SPEC = """Write the COMPOSITION of {name}: what it is made of, counted. It is used to keep every picture of the product
+consistent, so count from the photos (they are the truth) and use the text only for names, labels and sizes.
+
+PRODUCT INFO
+{info}
+
+NOTES FROM PRODUCT PAGES
+{notes}
+
+Answer one JSON object:
+{{"summary": "one sentence listing the counted parts, e.g. 4 dials, 1 power light, 1 light button, 1 glass door with a bar handle, 4 feet",
+  "components": [{{"name": "", "count": 1, "where": "where it sits on the product", "label": "the text printed on or next to it, exactly, or empty"}}],
+  "accessories": [{{"name": "", "count": 1}}],
+  "materials": ["material and finish of each main part"],
+  "dimensions": {{"width": "", "depth": "", "height": "", "weight": "", "capacity": "", "source": "where the numbers come from, or: not stated"}}}}
+At most 12 components, the ones a picture could get wrong first. Write a dimension only if it is stated in the notes or
+the product info; never estimate one - leave it empty."""
+
+
+def product_spec(call, folder, product, info, tags, model, notes=""):
+    """The product's composition, counted: read from product_spec.json or written now. None if it cannot be written."""
+    path = os.path.join(folder, "product_spec.json")
+    if os.path.exists(path):
+        try:
+            return json.load(open(path, encoding="utf-8"))
+        except Exception:
+            pass
+    order = {"hero": 0, "detail": 1, "view": 2}
+    picks = sorted((k for k, v in tags.items() if v.get("use") in order and v.get("same_product") is not False and not k.startswith("generated/")),
+                   key=lambda k: (order[tags[k]["use"]], not tags[k].get("clean")))[:5]
+    try:
+        spec = parse_json(llm(call, model, SPEC.format(name=f'{product.get("brand", "")} {product.get("model", "")} {product.get("name", "")}'.strip(),
+                                                       info=(info or "(none)")[:3500], notes=(notes or "(none)")[:3500]),
+                              [data_url(Image.open(os.path.join(folder, k)), 1536, 88) for k in picks], max_tokens=2000), want=dict)
+    except Exception as e:
+        logger.warning("composition not written: %s", e)
+        return None
+    json.dump(spec, open(path, "w", encoding="utf-8"), indent=1)
+    return spec
+
+
+def _wrap(d, text, f, max_w):
+    words, lines, cur = str(text).split(), [], ""
+    for w in words:
+        if d.textlength((cur + " " + w).strip(), font=f) <= max_w:
+            cur = (cur + " " + w).strip()
+        else:
+            if cur:
+                lines.append(cur)
+            cur = w
+    return lines + ([cur] if cur else [])
+
+
+def spec_panel(spec, width=2800, columns=2):
+    """The composition as a panel of text: counted parts with what is printed on them, accessories, materials, sizes.
+    Text sits in a panel of its own, never over a photograph, so an image model does not read it as printed on the
+    product. Two columns: a tall narrow column of text forced every other panel of the sheet into one thin row."""
+    head, body = font(46), font(38, bold=False)
+    probe = ImageDraw.Draw(Image.new("RGB", (8, 8)))
+    blocks = []
+    if spec.get("summary"):
+        blocks.append(("MADE OF", [spec["summary"]]))
+    comps = [f'{c.get("count", 1)} x {c.get("name", "")}' + (f' - reads: {c["label"]}' if c.get("label") else "") for c in (spec.get("components") or [])[:12] if c.get("name")]
+    if comps:
+        blocks.append(("PARTS, COUNTED", comps))
+    acc = [f'{a.get("count", 1)} x {a.get("name", "")}' for a in (spec.get("accessories") or [])[:8] if a.get("name")]
+    if acc:
+        blocks.append(("ACCESSORIES", acc))
+    if spec.get("materials"):
+        blocks.append(("MATERIALS", [str(m) for m in spec["materials"][:5]]))
+    dims = spec.get("dimensions") or {}
+    sizes = [f"{k}: {dims[k]}" for k in ("width", "depth", "height", "weight", "capacity") if dims.get(k)]
+    if sizes:
+        blocks.append(("SIZE (" + str(dims.get("source") or "stated by the maker")[:60] + ")", sizes))
+    if not blocks:
+        return None
+    col_w = (width - 80 * (columns + 1)) // columns
+    laid = []                                            # per block: its lines (text, font, indent) and its height
+    for title, items in blocks:
+        lines = [(title, head, 0)]
+        for it in items:
+            for i, ln in enumerate(_wrap(probe, it, body, col_w - 90)):
+                lines.append((ln, body, 0 if i == 0 else 44))
+        laid.append((lines, 58 * len(lines) + 30))
+    total = sum(h for _l, h in laid)
+    cols, cur, run = [[]], 0, 0
+    for lines, h in laid:                                # fill a column to about its share, then start the next
+        if cols[cur] and run + h / 2 > total / columns and cur < columns - 1:
+            cols.append([])
+            cur, run = cur + 1, 0
+        cols[cur].append((lines, h))
+        run += h
+    height = 80 + max(sum(h for _l, h in c) for c in cols)
+    im = Image.new("RGB", (width, height), (255, 255, 255))
+    d = ImageDraw.Draw(im)
+    for ci, col in enumerate(cols):
+        x0, y = 80 + ci * (col_w + 80), 40
+        for lines, _h in col:
+            for text, f, indent in lines:
+                if f is body and not indent:
+                    d.ellipse((x0 + 2, y + 16, x0 + 16, y + 30), fill=(20, 20, 20))
+                d.text((x0 + (40 + indent if f is body else 0), y), text, fill=(20, 20, 20) if f is head else (40, 40, 40), font=f)
+                y += 58
+            y += 30
+    return im
+
+
+def dimension_panel(im, dims):
+    """A whole view with its stated width and height drawn as dimension lines (never estimated: only what the maker states)."""
+    w_txt, h_txt = (dims or {}).get("width"), (dims or {}).get("height")
+    if not (w_txt or h_txt):
+        return None
+    im = im.convert("RGB")
+    scale = 1400 / max(im.size)
+    im = im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
+    m, f, ink = 190, font(52), (20, 20, 20)
+    out = Image.new("RGB", (im.width + 2 * m, im.height + 2 * m), (255, 255, 255))
+    out.paste(im, (m, m))
+    d = ImageDraw.Draw(out)
+    if w_txt:
+        y = m + im.height + 70
+        d.line([(m, y), (m + im.width, y)], fill=ink, width=6)
+        for x in (m, m + im.width):
+            d.line([(x, y - 26), (x, y + 26)], fill=ink, width=6)
+        d.text((m + (im.width - d.textlength(str(w_txt), font=f)) / 2, y + 30), str(w_txt), fill=ink, font=f)
+    if h_txt:
+        x = m + im.width + 70
+        d.line([(x, m), (x, m + im.height)], fill=ink, width=6)
+        for y in (m, m + im.height):
+            d.line([(x - 26, y), (x + 26, y)], fill=ink, width=6)
+        label = Image.new("RGB", (int(d.textlength(str(h_txt), font=f)) + 20, 70), (255, 255, 255))
+        ImageDraw.Draw(label).text((10, 4), str(h_txt), fill=ink, font=f)
+        label = label.rotate(90, expand=True)
+        out.paste(label, (x + 28, m + (im.height - label.height) // 2))
+    if (dims or {}).get("depth"):
+        d.text((m, 60), "depth: " + str(dims["depth"]), fill=ink, font=f)
+    return out
+
+
+def _shape(im):
+    """The outline of what a panel shows, as a small mask: two whole views with the same outline are the same angle."""
+    im = im.convert("RGB")
+    diff = ImageChops.difference(im, Image.new("RGB", im.size, (255, 255, 255))).convert("L").point(lambda v: 255 if v > 24 else 0)
+    box = diff.getbbox()
+    if not box:
+        return None
+    return [v > 0 for v in diff.crop(box).resize((48, 48)).getdata()]
+
+
+def same_shape(a, b):
+    sa, sb = _shape(a), _shape(b)
+    if not sa or not sb:
+        return False
+    union = sum(1 for x, y in zip(sa, sb) if x or y)
+    return union > 0 and sum(1 for x, y in zip(sa, sb) if x and y) / union > 0.9
+
+
 def _box_of(slot):
     boxes = slot.get("crops") or ([slot["crop"]] if slot.get("crop") else [])
     if not boxes:
@@ -975,7 +1352,8 @@ def drop_repeats(built, slots):
         why = ""
         for k in kept:
             same_photo = k["source"] == b["source"] and not b.get("generated")
-            if same_photo and box and not k["_box"] and (box[2] - box[0]) * (box[3] - box[1]) > 0.25:
+            limit = 0.45 if b.get("kind") == "controls" else 0.25
+            if same_photo and box and not k["_box"] and (box[2] - box[0]) * (box[3] - box[1]) > limit:
                 why = f'shows again most of the photo already used whole in "{k["caption"]}"'
             elif same_photo and box and k["_box"]:
                 kb = k["_box"]
@@ -985,6 +1363,8 @@ def drop_repeats(built, slots):
                     why = f'shows the same area of the same photo as "{k["caption"]}"'
             if not why and float((b["_look"] * k["_look"]).sum()) > 0.9:
                 why = f'looks the same as "{k["caption"]}"'
+            if not why and b.get("kind") == "whole" and k.get("kind") == "whole" and same_shape(b["im"], k["im"]):
+                why = f'is the same angle as "{k["caption"]}"'
             if why:
                 break
         if why:
@@ -1040,19 +1420,18 @@ def _splits(items, max_rows):
 
 
 # the hierarchy of a sheet: the product itself, then its controls and details, then accessories, then the hand / person
-KIND_RANK = {"whole": 0, "controls": 1, "state": 2, "detail": 3, "part": 4, "use": 5}
-AREA_WEIGHT = {"whole": 1.6, "controls": 1.9, "state": 1.6, "detail": 1.2, "part": 0.6, "use": 1.0}
+KIND_RANK = {"whole": 0, "controls": 1, "state": 2, "detail": 3, "spec": 3.5, "part": 4, "use": 5}
+AREA_WEIGHT = {"whole": 1.6, "controls": 1.9, "state": 1.6, "detail": 1.2, "spec": 1.1, "part": 0.6, "use": 1.0}
 
 QA = """You are the last check before a product reference sheet is delivered. PRODUCT: {name}. An image model will use
 this sheet as its only reference of the product, so judge it strictly. Panel captions, in order: {caps}
 
-What a good sheet is, in order of importance:
-1. The product itself, alone, complete, large and clear, on plain white. No coloured or graphic background anywhere.
-2. Close-ups of the product's own details: its buttons, switches, displays, labels, logo.
-3. Its accessories - present, complete, and clearly smaller than the product.
-4. The product in a hand or with a person, showing its true size.
+What a good sheet is for THIS product, in order of importance:
+{expect}
+Judge only against this list: do not ask for a panel the list does not ask for.
 
-The title and the one-line note under it are part of the sheet format, not a problem. A panel marked (GENERATED) is
+{composition}The title and the one-line note under it are part of the sheet format, not a problem. So are a panel of
+specification text and a panel with dimension lines. A panel marked (GENERATED) is
 allowed. The in-use panel shows a hand or a person: that is what it is for.
 
 Report only real problems, each with one of these codes:
@@ -1062,12 +1441,32 @@ empty_space (a large blank area), product_unclear (the product alone is not the 
 Answer one JSON object: {{"pass": true or false, "issues": [{{"panel": "the caption, or SHEET", "code": "...", "why": "one sentence"}}]}}"""
 
 
-def qa_sheet(call, name, sheet, captions, model):
+def qa_expect(profile):
+    """What the final QA may ask of this product: the hierarchy, with the parts its profile switches off left out."""
+    whole = ("All pieces of the set together, complete, large and clear, on plain white, then laid out apart."
+             if profile and profile.get("is_set") else "The product itself, alone, complete, large and clear, on plain white.")
+    lines = [whole + " No coloured or graphic background anywhere."]
+    lines.append("Close-ups of its own details: its buttons, switches, displays, labels and logo." if applies(profile, "has_controls")
+                 else "Close-ups of its logo and distinctive details. It has no controls: do not ask for a controls close-up.")
+    if applies(profile, "opens"):
+        lines.append("The product open, showing its inside.")
+    if applies(profile, "has_accessories") and not (profile and profile.get("is_set")):
+        lines.append("Its accessories - present, complete, and clearly smaller than the product.")
+    lines.append("The product in a hand or with a person, showing its true size." if applies(profile, "handheld")
+                 else "It is not held in the hand: a panel with a hand or a person is optional, do not ask for one.")
+    return "\n".join(f"{i + 1}. {t}" for i, t in enumerate(lines))
+
+
+def qa_sheet(call, name, sheet, captions, model, profile=None, composition=""):
     """A vision model judges the finished sheet as a whole. Returns {"pass": bool, "issues": [...]}; on failure of the
     call itself the sheet is not blocked and the answer says the check did not run."""
     try:
-        got = parse_json(llm(call, model, QA.format(name=name, caps="; ".join(captions)), [data_url(sheet, 2000, 85)], max_tokens=1500))
-        issues = [i for i in got.get("issues", []) if isinstance(i, dict) and i.get("code")]
+        got = parse_json(llm(call, model, QA.format(name=name, caps="; ".join(captions), expect=qa_expect(profile),
+                                                    composition=(f"The product is made of: {composition}. A panel that shows a different number "
+                                                                 "of these parts is an artefact.\n" if composition else "")),
+                             [data_url(sheet, 2000, 85)], max_tokens=1500))
+        off = {code for code, trait in (("no_in_use", "handheld"), ("no_controls_closeup", "has_controls")) if not applies(profile, trait)}
+        issues = [i for i in got.get("issues", []) if isinstance(i, dict) and i.get("code") and i.get("code") not in off]
         return {"pass": bool(got.get("pass")) and not issues, "issues": issues}
     except Exception as e:
         logger.warning("sheet QA failed to run: %s", e)
@@ -1129,6 +1528,8 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
             score *= (min(hts) / (0.5 * max(hts))) ** 2                             # details are smaller than the product, not tiny
         if any(b > a * 1.05 for a, b in zip(hts, hts[1:])):
             score *= 0.3                                                            # rows follow the hierarchy: never taller further down
+        if n > 1 and any(len(r) == 1 and asp[r[0]] * min(h, cap[r[0]]) < 0.6 * (W - 2 * pad) for r, h in zip(rows, hts)):
+            score *= 0.35                                                           # one narrow picture alone in a row: white on both sides
         if any(len(r) == 1 and items[r[0]].get("kind") not in ("whole", "controls", "state") for r in rows) and n > 1:
             score *= 0.4                                                            # no accessory, detail or in-use panel gets a row to itself
         areas = {i: asp[i] * min(h, cap[i]) ** 2 for r, h in zip(rows, hts) for i in r}
@@ -1154,10 +1555,12 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
     return out, slack
 
 
-def compose(panels, title, subtitle, size=5000, margin=60, gap=30, cap_h=110, max_up=1.5, hero_weight=None):
-    """panels: [{"im": PIL, "role": hero|view|detail, "caption": str}] -> (sheet, info rows)."""
+def compose(panels, title, subtitle, size=5000, margin=60, gap=30, cap_h=110, max_up=1.5, hero_weight=None, height=None):
+    """panels: [{"im": PIL, "role": hero|view|detail, "caption": str}] -> (sheet, info rows). size is the width;
+    height defaults to it (square), or is given for a 16:9 sheet."""
     bg, cell, ink, sub, line = (232, 232, 232), (255, 255, 255), (20, 20, 20), (90, 90, 90), (200, 200, 200)
-    sheet = Image.new("RGB", (size, size), bg)
+    height = height or size
+    sheet = Image.new("RGB", (size, height), bg)
     d = ImageDraw.Draw(sheet)
 
     def fit(text, max_w, s):
@@ -1171,7 +1574,7 @@ def compose(panels, title, subtitle, size=5000, margin=60, gap=30, cap_h=110, ma
         d.text((margin + 50, y + 28), title, fill=ink, font=fit(title, size - 2 * margin - 100, 84))
         d.text((margin + 50, y + 128), subtitle or "", fill=sub, font=fit(subtitle or "", size - 2 * margin - 100, 58))
         y += 210 + gap
-    rows, slack = layout(panels, size - 2 * margin, size - margin - y, gap, cap_h, max_up, hero_weight=hero_weight)
+    rows, slack = layout(panels, size - 2 * margin, height - margin - y, gap, cap_h, max_up, hero_weight=hero_weight)
     info = []
     for cells, rh in rows:
         x, rh = margin, rh + slack

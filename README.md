@@ -669,6 +669,19 @@ contact sheet output shows every photo found, the usable ones first.
   category, empty ones marked; `categories.json` lists them. The sheet fills each panel from its own category first,
   cuts a close-up from a PRODUCT ALONE photo when the category is empty, and generates only as a last resort.
   Measured on one hair dryer: no real close-up of its buttons or logo exists on the open web, so both were cut.
+- **One model, one finish.** Makers sell near-identical models and shops reuse each other's pictures; a vision model
+  cannot tell them apart. Two checks that do not depend on it: a photo whose file name carries another model number
+  of the same family (`ab70x` for an AB-60) is kept but not used; and the lightness of the product's body is
+  measured in every whole-product photo on a plain background - when the photos fall into two groups (brushed steel
+  and black stainless), the group of the input photo, or the larger group when there is no input photo, is the
+  product's finish. Limit: a photo of another finish taken in a room is not measured and can still get through.
+- **Colour layer.** When the sheet is built, every whole view is measured again once it sits on white. One whose
+  finish is far from the product's finish, or that could not be put on white at all, is replaced by another real
+  photo of the right finish, or dropped. This catches what the research step cannot measure: a photo of another
+  finish taken against a dark background.
+- **Tested on references it had never seen (2026-11-11), from a name only:** a second coffee maker, a second air
+  fryer oven, a second cookware set and a basket air fryer. Each produced a sheet in 6 to 9 minutes; none passed the
+  final QA without a flag, so a person still has to look at the sheet before it is used.
 - **Image search.** Needs the `ddgs` package (in `requirements.txt`; ComfyUI Manager installs it with the node). If it
   is missing the node still runs on page search alone and the report says so. Measured on one product: 13 photos tagged
   without it, 42 with it - many of them marketing pictures, which the tagger keeps as reference only.
@@ -678,7 +691,7 @@ contact sheet output shows every photo found, the usable ones first.
 - **Outputs:** `product_dir` (STRING), `product_info` (STRING), `contact_sheet` (IMAGE), `report` (STRING),
   `scene_prompt` (STRING)
 - **Saved in `product_dir`:** `images/`, `not_product/`, `product.json`, `image_tags.json`, `product_info.txt`,
-  `scene_prompt.txt`, `research_report.txt`
+  `scene_prompt.txt`, `research_report.txt`; `product.json` also holds the product `profile`
 
 #### Product Sheet (`SupersideProductSheetNode`)
 Step 2. Builds one square reference sheet (5000 x 5000 by default) from a researched folder. A vision LLM fills a fixed
@@ -714,6 +727,26 @@ list of slots with the best photo for each; code frames every picture, packs the
 - **Close-ups are tight.** To find the controls or the logo in a photo the model is shown the product under a numbered
   grid and names the cells; asked for coordinates it was 5-10 % off and missed a small button altogether. Each group
   of cells becomes one cut; a cut larger than a fifth of the photo is refused.
+- **One set of rules, a profile per product.** There is no rulebook per category: that would not scale to the next
+  product and the rulebooks would end up contradicting each other. Every product gets a small profile of traits -
+  `handheld`, `opens`, `has_controls`, `has_accessories`, `is_set` - decided once by an LLM from the product info,
+  saved in `product.json` (edit it there to correct it) and read by the planner, the gates and the final QA. A trait
+  that is off removes its slot: no controls close-up for cookware, no open state for a hair dryer, the in-hand panel
+  required only for products held in the hand. A set of pieces is treated as the product itself. Before the profile
+  existed the final QA asked every sheet for "the product in a hand", which an oven can never satisfy.
+- **Composition, counted.** `product_spec.json` lists what the product is made of: parts with their count, where
+  they sit and what is printed on them ("4 knobs ... Temperature knob reads: Warm, 250, 300 ..."), accessories,
+  materials and the sizes the maker states (never estimated). Product Research writes it and puts its one-line
+  summary first in the product info, so every prompt carries the counts; the final QA is told the counts too.
+- **Text on the sheet (`spec_panel`, on by default).** Two panels use space that used to be white: WHAT IT IS MADE OF
+  (the composition as text, in two columns) and, when the maker states sizes, a whole view with dimension lines.
+  Text always sits in a panel of its own, never over a photograph.
+- **`format`: 1:1 or 16:9.** In 16:9 `size` is the width.
+- **`sheets`: one sheet or a set of 3.** The set returns three images in one batch and saves them as
+  `sheet_<mode>_product.png`, `_details.png` and `_in_use.png`: the product with its composition and sizes; its
+  close-ups, details and accessories; and the product in use (up to four real photos, kept with their scene). Each
+  thing is drawn larger than on one sheet. The gates and the final QA still run on the single sheet.
+- **Same angle.** Two whole views with the same outline are the same angle, whatever their tags say: one goes.
 - **Always on white.** Any panel whose border is not near white (a flat colour, a gradient, a room) has its background
   removed, the in-use photo included (the hand stays). Cut-outs are kept in `clean/` so they are paid for once.
 - **Close-ups are cut, not generated.** Asked for a close-up from whole-product references the image model returned
@@ -733,7 +766,8 @@ list of slots with the best photo for each; code frames every picture, packs the
   looking at the result): it can include more than the controls. The automatic plan finds fewer open states than a
   hand-made one. A saved `sheet_plan_<mode>.json` can be edited by hand and is reused while `reuse_plan` is on.
 - **Inputs:** `product_dir`, `api_key` - optional: `mode`, `max_generated` (6; each new view is one GPT Image 2.5 Sunburst
-  call at quality high), `isolate_busy_photos`, `size`, `llm_model`, `check_model`, `reuse_plan`, `strict`, `include_parts`
+  call at quality high), `isolate_busy_photos`, `size`, `llm_model`, `check_model`, `reuse_plan`, `strict`, `include_parts`,
+  `format` (1:1), `sheets` (one sheet), `spec_panel` (on)
 - **Outputs:** `sheet` (IMAGE), `product_info` (STRING), `info` (STRING, JSON: gates with the QA findings, notes,
   panels), `scene_prompt` (STRING: one scene of the product in real use, for the render step)
 - **Saved in `product_dir`:** `sheet_<mode>.png`, `sheet_<mode>_info.json`, `sheet_plan_<mode>.json`, `generated/`,
