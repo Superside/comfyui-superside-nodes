@@ -38,6 +38,12 @@ If `git pull` reports local changes, stash them first: `git stash` → `git pull
 
 ### Recent updates
 
+**2026-11-10 - Product sheet pipeline.** Four nodes for any product: Product
+Research (photo to a folder of tagged photos and a PRODUCT INFO text), Product
+Sheet (one 5000 x 5000 reference sheet, checked against hard gates before it is
+returned), Product Sheet (one step), and Product Video Reference (short clips
+of the product in use, cut by action). Folder inputs get a browse button.
+
 **2026-11-06 - Reverse Video.** Plays a clip backwards, VIDEO in and VIDEO out,
 so frame rate, audio and colour space survive. Audio can be reversed with the
 picture, left alone or dropped. Runs locally, no API key.
@@ -633,6 +639,84 @@ The DETAILS strip fills three slots on its own. `BRIDGE` and `JOINT` are cut fro
 - **Inputs:** `front` · optional: `side`, `three_quarter`, `three_quarter_additional`, `max_long_side` (default 5000), `margin_percent` (default 6), `gap_px` (divider width, default 14), `background_threshold` (default 12), `detail_boxes` (JSON list of `{view, x1, y1, x2, y2, caption}`, fractions of that view's product box), `auto_bridge` (default ON), `auto_joint` (default ON), `auto_logo` (default OFF), `layout` (`standard` / `corner`, default standard), `canvas` (`fit` / `square`, default fit), `api_key` (only for `auto_logo`)
 - **Outputs:** `image` (IMAGE, the sheet), `info` (STRING, JSON with the views used, the shared scale, the detail captions and the final size)
 
+### Product sheet pipeline (any product, from one photo)
+
+Four nodes that share one folder per product. Research runs once per product; the sheet can then be rebuilt freely.
+Built on a three-product kitchen POC (2026-11). Status: the sheet built from a hand-approved plan matches what the owner
+approved; the fully automatic plan is usable but still weaker (see the limits under Product Sheet).
+
+Folder inputs have a button that opens the Windows file dialog on the machine running ComfyUI: **Choose save folder...**
+(folder dialog) where a new product is saved, **Browse product folder...** (the ordinary Open dialog, with thumbnails -
+pick any file inside the product folder) where an existing one is read. Type the path when ComfyUI is remote.
+
+#### Product Research (`SupersideProductResearchNode`)
+Step 1. Give it a photo of a product and, if you know them, the brand and model. It identifies the product, finds web
+pages that show it (an LLM with web search, plus any links you paste), downloads the photos named after the model, tags
+every photo (view, state, parts, clean or not, same colour or not) and writes a PRODUCT INFO text for prompts. Nothing is
+discarded: every photo stays in the folder with its tags; photos of another colour or model are kept and never used. The
+contact sheet output shows every photo found, the usable ones first.
+
+- **Write the model in `product_hint` when you know it.** Makers sell near-identical models under different numbers; from a
+  photo alone the first test named a sibling model with "high" confidence. The report lists look-alikes.
+- **Some shops refuse automated clients.** Such pages are skipped, never worked around; give other links in `source_urls`.
+- **Inputs:** `api_key` - optional: `image`, `product_hint`, `source_urls` (links, one per line), `output_dir` (empty =
+  `output/product_sheets/<brand_model>`), `search_pages` (default 8), `max_images` (40), `min_image_side` (700),
+  `llm_model`, `tag_model`
+- **Outputs:** `product_dir` (STRING), `product_info` (STRING), `contact_sheet` (IMAGE), `report` (STRING)
+- **Saved in `product_dir`:** `images/`, `product.json`, `image_tags.json`, `product_info.txt`, `research_report.txt`
+
+#### Product Sheet (`SupersideProductSheetNode`)
+Step 2. Builds one square reference sheet (5000 x 5000 by default) from a researched folder. A vision LLM fills a fixed
+list of slots with the best photo for each; code frames every picture, packs the sheet and checks it before returning it.
+
+- **What a sheet is made of** (settled on the owner's mark-up of the oven sheet): the whole product first and largest;
+  one close-up of all the controls with every label; a second control close-up only for a small group that is easy to
+  miss; the product open, large, plus a closer view of the open area. Fewer, larger panels: 6 to 9. Removable parts alone
+  are off unless `include_parts` is on.
+- **Modes.** `real`: photographs only. `mixed` (default): photographs for whole views, controls and labels, and a
+  generated clean view only where no clean photograph exists, captioned `(GENERATED)`. `generated`: every panel generated.
+  A generated view keeps shape and parts but redraws small printed labels wrong, so label close-ups always come from a
+  photograph. A state photo with food, hands or props is not placed: it becomes the reference of a generated clean view.
+- **Why the LLM does not crop or lay out.** Asked for crop boxes it was 5-10 % off - a cut dial - with or without a review
+  pass, on two model families; asked for a layout it left half the sheet empty. Whole views are framed by code (plain
+  backgrounds are trimmed, busy ones cut out with background removal). The layout tries every way of cutting the ordered
+  panels into rows and keeps the one that puts the most picture on the sheet, whole views in the tallest rows.
+- **Hard gates.** The first automatic sheet showed a second colour of the product, panels that did not match their
+  caption, parts cut in half, marketing text and food. Now: whole views take at least 40 % of the sheet and nothing is
+  larger than the largest whole view; a subject cut off by the edge of its source photo is refused; every finished panel is
+  checked against its caption by a second model and removed if it shows something else; other colours are never placed;
+  empty slots are reported in `info` as missing rather than filled with something else. With `strict` on, a sheet that
+  fails a gate is not returned (a copy is saved as `sheet_<mode>_REJECTED.png`).
+- **Known limits.** The control close-up is still cut from the front photograph by an LLM box (bounded, then fitted by
+  looking at the result): it can include more than the controls. The automatic plan finds fewer open states than a
+  hand-made one. A saved `sheet_plan_<mode>.json` can be edited by hand and is reused while `reuse_plan` is on.
+- **Inputs:** `product_dir`, `api_key` - optional: `mode`, `max_generated` (5; each new view is one GPT Image 2.5 Sunburst
+  call at quality high), `isolate_busy_photos`, `size`, `llm_model`, `check_model`, `reuse_plan`, `strict`, `include_parts`
+- **Outputs:** `sheet` (IMAGE), `product_info` (STRING), `info` (STRING, JSON: gates, notes, panels)
+- **Saved in `product_dir`:** `sheet_<mode>.png`, `sheet_<mode>_info.json`, `sheet_plan_<mode>.json`, `generated/`
+
+#### Product Sheet (one step) (`SupersideProductSheetAutoNode`)
+Research and Sheet in a single node, for when nobody needs to look at the photos in between: photo in, sheet and PRODUCT
+INFO out. It researches only when the folder has not been researched yet (or `redo_research` is on), so a second Run
+rebuilds the sheet without searching again. Prefer the two separate nodes when the photos should be reviewed first.
+- **Inputs:** `api_key` - optional: `image`, `product_hint`, `source_urls`, `output_dir`, `mode`, `max_generated`,
+  `redo_research`, `strict`
+- **Outputs:** `sheet` (IMAGE), `product_info` (STRING), `product_dir` (STRING), `report` (STRING)
+
+#### Product Video Reference (`SupersideProductVideoReferenceNode`)
+Optional step 3, for video models that accept a video reference. Finds videos of the product in use (your links, or a
+YouTube search), samples a frame every few seconds, has a cheap vision model say what happens in each, merges frames with
+the same action into segments, cuts the best into silent clips and builds two ~20 s edits (overview, hands-on actions).
+On the POC, 712 frames from 4 videos cost about $0.35 to read and gave 28 clips in 7 action groups. The footage belongs to
+its authors: internal reference only. Needs `yt-dlp` and `ffmpeg` on PATH. Searching and downloading from inside the node
+has not been exercised yet; cutting from videos already in `product_dir/videos` has.
+
+- **Inputs:** `product_dir`, `api_key` - optional: `video_urls`, `search_videos` (3), `max_video_minutes` (12),
+  `seconds_between_frames` (2), `edit_seconds` (20), `tag_model`
+- **Outputs:** `edit_overview_path` (STRING), `video_refs_dir` (STRING), `storyboard` (IMAGE), `report` (STRING)
+- **Saved in `product_dir/video_refs`:** `ref_NN_<action>.mp4` + `.jpg`, `index.json`, `edit_A_overview.mp4`,
+  `edit_B_actions.mp4`, `edits.json`
+
 ### Image utilities (no API key needed)
 
 #### Resize To Match (`SupersideResizeToMatchNode`)
@@ -723,6 +807,7 @@ comfyui-superside-nodes/
 │   └── <node files>
 ├── web/js/show_text.js        # Read-only result-text display widget for select nodes
 ├── web/js/price_note.js       # Draws each node's fal price under the node
+├── web/js/folder_picker.js    # Browse buttons of the product nodes (modules/folder_picker.py + .ps1)
 ├── requirements.txt
 └── README.md
 ```

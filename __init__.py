@@ -35,6 +35,11 @@ try:
     from .modules.nano_banana_v21_edit_node import SupersideNanoBananaV21EditNode
     from .modules.normalize_product_node import SupersideNormalizeProductNode
     from .modules.sku_reference_sheet_node import SupersideSkuReferenceSheetNode
+    from .modules.product_research_node import SupersideProductResearchNode
+    from .modules.product_sheet_node import SupersideProductSheetNode
+    from .modules.product_sheet_auto_node import SupersideProductSheetAutoNode
+    from .modules.product_video_reference_node import SupersideProductVideoReferenceNode
+    from .modules import folder_picker as _folder_picker
     from .modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from .modules.prompt_box_node import SupersidePromptBoxNode
     from .modules.prompt_splitter_node import SupersidePromptSplitterNode
@@ -121,6 +126,11 @@ except ImportError:
     from modules.nano_banana_v21_edit_node import SupersideNanoBananaV21EditNode
     from modules.normalize_product_node import SupersideNormalizeProductNode
     from modules.sku_reference_sheet_node import SupersideSkuReferenceSheetNode
+    from modules.product_research_node import SupersideProductResearchNode
+    from modules.product_sheet_node import SupersideProductSheetNode
+    from modules.product_sheet_auto_node import SupersideProductSheetAutoNode
+    from modules.product_video_reference_node import SupersideProductVideoReferenceNode
+    from modules import folder_picker as _folder_picker
     from modules.pasd_upscaler_node import SupersidePASDUpscalerNode
     from modules.prompt_box_node import SupersidePromptBoxNode
     from modules.prompt_splitter_node import SupersidePromptSplitterNode
@@ -198,6 +208,10 @@ NODE_CLASS_MAPPINGS = {
     "SupersideNanoBananaV21EditNode": SupersideNanoBananaV21EditNode,
     "SupersideNormalizeProductNode": SupersideNormalizeProductNode,
     "SupersideSkuReferenceSheetNode": SupersideSkuReferenceSheetNode,
+    "SupersideProductResearchNode": SupersideProductResearchNode,
+    "SupersideProductSheetNode": SupersideProductSheetNode,
+    "SupersideProductSheetAutoNode": SupersideProductSheetAutoNode,
+    "SupersideProductVideoReferenceNode": SupersideProductVideoReferenceNode,
     "SupersidePASDUpscalerNode": SupersidePASDUpscalerNode,
     "SupersidePromptBoxNode": SupersidePromptBoxNode,
     "SupersidePromptSplitterNode": SupersidePromptSplitterNode,
@@ -277,6 +291,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SupersideNanoBananaV21EditNode": "Superside Nano Banana 2.1 Edit",
     "SupersideNormalizeProductNode": "Superside Normalize Product",
     "SupersideSkuReferenceSheetNode": "Superside SKU Reference Sheet",
+    "SupersideProductResearchNode": "Superside Product Research",
+    "SupersideProductSheetNode": "Superside Product Sheet",
+    "SupersideProductSheetAutoNode": "Superside Product Sheet (one step)",
+    "SupersideProductVideoReferenceNode": "Superside Product Video Reference",
     "SupersidePASDUpscalerNode": "Superside PASD Upscaler Node",
     "SupersidePromptBoxNode": "Superside Prompt Box",
     "SupersidePromptSplitterNode": "Superside Prompt Splitter",
@@ -361,5 +379,6 @@ except Exception as _exc:  # never block node loading over a tooltip
 
 
 WEB_DIRECTORY = "web"
+_folder_picker.register_routes()      # the "Browse folder..." button of the product nodes
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

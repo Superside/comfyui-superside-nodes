@@ -647,6 +647,19 @@ NODE_ENDPOINTS = {
         "alibaba/wan-3.0-prime/text-to-video",
     ],
 
+    "SupersideProductResearchNode": ["openrouter/router", "openrouter/router/vision"],
+    "SupersideProductSheetNode": [
+        "openrouter/router/vision",
+        "fal-ai/bria/background/remove",
+        "openai/gpt-image-2.5/sunburst/edit",
+    ],
+    "SupersideProductSheetAutoNode": [
+        "openrouter/router",
+        "openrouter/router/vision",
+        "fal-ai/bria/background/remove",
+        "openai/gpt-image-2.5/sunburst/edit",
+    ],
+    "SupersideProductVideoReferenceNode": ["openrouter/router/vision"],
     "SupersideAnyLLMTextNode": ["openrouter/router", "fal-ai/any-llm"],
     "SupersideAnyLLMVisionNode": ["openrouter/router/vision", "fal-ai/any-llm/vision"],
     "SupersideBriaBackgroundReplaceNode": ["fal-ai/bria/background/replace"],
