@@ -64,9 +64,10 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                 "strict": ("BOOLEAN", {"default": True, "tooltip": "Stop instead of returning a sheet that fails a hard gate."}),
                 "include_parts": ("BOOLEAN", {"default": False, "tooltip": "Also show every removable part alone. Off: fewer, larger panels."}),
                 "format": (["1:1", "16:9"], {"default": "1:1", "tooltip": "Shape of the sheet. 16:9 keeps `size` as the width."}),
-                "sheets": (["one sheet", "set of 3"], {"default": "one sheet",
-                                                       "tooltip": "set of 3: the product, its close-ups and details, and the product in use, as three "
-                                                                  "images in one batch - each thing is shown larger."}),
+                "variant": (["all in one", "product", "details", "in use"], {"default": "all in one",
+                            "tooltip": "Which sheet to build. product: the whole product, its counted parts and sizes. details: close-ups "
+                                       "of controls, logo, texture and accessories. in use: the product being used. Connect this node three "
+                                       "times to the same product_dir for the full set; the plan and generated views are shared."}),
                 "spec_panel": ("BOOLEAN", {"default": True, "tooltip": "Add a panel of text with the product's counted parts, what its controls read, "
                                                                         "materials and stated sizes, and a panel with dimension lines when sizes are known."}),
             },
@@ -74,9 +75,10 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
 
     def build(self, product_dir, api_key, mode="mixed", max_generated=5, isolate_busy_photos=True, size=5000,
               llm_model="anthropic/claude-sonnet-4.6", check_model="google/gemini-2.5-flash", reuse_plan=True, strict=True,
-              include_parts=False, format="1:1", sheets="one sheet", spec_panel=True):
+              include_parts=False, format="1:1", variant="all in one", spec_panel=True):
         folder = product_dir.strip().strip('"')
         sheet_h = round(size * 9 / 16) if format == "16:9" else size
+        suffix = "" if variant == "all in one" else "_" + variant.replace(" ", "_")
         if not os.path.isfile(os.path.join(folder, "image_tags.json")):
             raise ValueError(f"'{folder}' is not a researched product folder (image_tags.json is missing). Run Product Research first.")
         client = self.get_client(api_key)
@@ -100,18 +102,25 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
         spec = core.product_spec(call, folder, product, info, tags, llm_model)
         plan_path = os.path.join(folder, f"sheet_plan_{mode}.json")
         saved = json.load(open(plan_path, encoding="utf-8")) if reuse_plan and os.path.exists(plan_path) else {}
-        if "slots" in saved:
+        if saved.get("slots"):
             slots, notes = saved["slots"], []
             for sl in slots:
                 sl.pop("dropped", None)
         else:
-            slots, notes = core.plan_sheet(call, folder, product, tags, info, mode, 0 if mode == "real" else max_generated, llm_model,
-                                           include_parts=include_parts, profile=profile)
+            # a plan with no slot is a failed answer, not a plan: asked again once, and never saved
+            for _try in range(2):
+                slots, notes = core.plan_sheet(call, folder, product, tags, info, mode, 0 if mode == "real" else max_generated, llm_model,
+                                               include_parts=include_parts, profile=profile)
+                if slots:
+                    break
+            if not slots:
+                raise ValueError("The planner returned no panels twice for this product. Run the node again; if it repeats, "
+                                 "check that the folder has photos of the product alone.")
             json.dump({"slots": slots, "notes": notes}, open(plan_path, "w", encoding="utf-8"), indent=1)   # paid for: keep it
 
         built = []
         for i, sl in enumerate(slots):
-            if sl.get("missing"):
+            if sl.get("missing") or not (sl.get("image") or sl.get("generate") or sl.get("file")):
                 continue
             if sl.get("image"):
                 if sl["kind"] == "controls" and sl.get("crop") and not sl.get("crop_fitted") and check_model.strip():
@@ -148,6 +157,7 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
             photos = core.real_whole_photos(folder, tags, [k for k in tags if not k.startswith("generated/")])[:2]
             what = sl["caption"].lower() + (": every button, switch, dial, display and indicator, with labels" if sl["kind"] == "controls" else "")
             logo = sl["caption"].startswith("LOGO")            # a logo is small: a smaller cut is accepted, with some of the body around it
+            texture = sl["caption"].startswith("TEXTURE")
             used = {b["source"] for b in built}
             own = core.best_of(folder, tags, "logo close-up" if logo else "controls close-up", used) \
                 if (logo or sl["kind"] == "controls") and not force_cut else None
@@ -162,13 +172,24 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                 return cand
             if logo:
                 what = "the brand logo or name printed on the product itself (and the model name if it is next to it)"
+            if texture:
+                where = f' on the {sl["where"].lower()}' if sl.get("where") else ""
+                what = (f'a small patch of the bare surface of {sl["caption"].split("-", 1)[-1].strip().lower()}{where}: '
+                        "only the material itself, with no button, text, logo, edge, seam or shadow in it")
             key, boxes = core.locate_in_photo(call, folder, photos, name, what, llm_model.strip() or check_model.strip(),
-                                              min_px=100 if logo else 130, grow=0.45 if logo else 0.15, n=1 if logo else 2,
-                                              max_share=0.2 if (logo or sl["kind"] != "controls") else 0.4,
-                                              max_cells=6 if (logo or sl["kind"] != "controls") else 14)
+                                              min_px=100 if (logo or texture) else 130, grow=0.0 if texture else 0.45 if logo else 0.15,
+                                              n=1 if (logo or texture) else 2,
+                                              max_share=0.2 if (logo or texture or sl["kind"] != "controls") else 0.4,
+                                              max_cells=2 if texture else 6 if (logo or sl["kind"] != "controls") else 14)
             if not key:
                 notes.append(f'{sl["caption"]}: not found, tight enough for a close-up, in any real photo of the whole product')
+                if not sl.get("image") and not sl.get("generate"):
+                    sl["missing"] = True
                 return None
+            if texture:                                       # the bare material: measured inside the photo, near the hint
+                sq = core.texture_square(Image.open(os.path.join(folder, key)), boxes[0])
+                if sq:
+                    boxes = [sq]
             trial = dict(sl, image=key, crop=boxes[0], crop_fitted=True)
             trial.pop("crops", None)
             if len(boxes) > 1:
@@ -180,6 +201,8 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                 ok, _bad = core.verify_panels(call, name, [cand], check_model.strip(), keep_min=0)
             if not ok:
                 notes.append(f'{sl["caption"]}: the cut from a real photo was also refused ({cand.get("why", "")[:120]})')
+                if not sl.get("image") and not sl.get("generate"):
+                    sl["missing"] = True
                 return None
             for k2 in ("dropped", "missing", "why", "generate", "file"):
                 sl.pop(k2, None)
@@ -365,26 +388,120 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                     if cand:
                         built.append(cand)
 
-        if spec_panel and spec:
-            text = core.spec_panel(spec)
-            if text is not None:
-                built.append({"im": text, "role": "detail", "kind": "spec", "slot": -1, "source": "product_spec.json", "generated": False,
-                              "caption": "WHAT IT IS MADE OF", "max_up": 1.7})
-            first = next((b for b in built if b["kind"] == "whole" and not b["generated"]), None)
-            dim = core.dimension_panel(first["im"], spec.get("dimensions")) if first else None
-            if dim is not None:
-                built.append({"im": dim, "role": "detail", "kind": "spec", "slot": -1, "source": first["source"], "generated": False,
-                              "caption": "SIZE, AS STATED BY THE MAKER", "max_up": 1.7})
+        # Which sheet: all in one, or one of three - the product, its details, the product in use. All three are built from
+        # the same plan and the same panels, so they agree with each other; each only draws its own part, larger.
+        if variant == "details" and spec and (spec.get("materials") or []):
+            # one swatch per material the product is made of (brushed steel, black plastic, glass ...), up to three: a
+            # model needs each surface, not only the main one. Each is tried once per plan.
+            seen_m = set()
+            for entry in spec["materials"]:
+                material, part = core.material_name(entry)
+                key_m = frozenset(w for w in material.lower().split() if len(w) > 3)
+                if not material or any(len(key_m & k) >= max(1, min(len(key_m), len(k)) - 1) for k in seen_m):
+                    continue
+                seen_m.add(key_m)
+                if len(seen_m) > 3:
+                    break
+                cap = "TEXTURE - " + material
+                if any(b["caption"] == cap for b in built) or any(str(x.get("caption", "")) == cap for x in slots):
+                    continue
+                tex = {"kind": "detail", "caption": cap, "role": "detail", "where": part[:60]}
+                slots.append(tex)
+                cand = cut_closeup(len(slots) - 1, tex, force_cut=True)
+                if cand:
+                    built.append(cand)
+        for b in built:                                  # a texture swatch has no shape of its own: it fills its cell
+            if b["caption"].startswith("TEXTURE"):
+                b["flex"], b["flex_crop"], b["max_up"] = True, 1.0, 6.0
+        if variant == "product":
+            built = [b for b in built if b["kind"] in ("whole", "state")]
+        elif variant == "details":
+            built = [b for b in built if b["kind"] in ("controls", "detail", "part")]
+        elif variant == "in use":
+            # in-use photos keep their scene: the room, the hands and the food are what this sheet is for. Only photos
+            # of this product (its own model and finish) that carry no added text.
+            used = {b["source"] for b in built}
+            more = [k for k, t in tags.items() if t.get("view") in ("in hand", "in use") and t.get("same_product") is not False
+                    and t.get("banner", "none") in ("none", None) and t.get("background") not in ("graphic", "white") and k not in used
+                    and not k.startswith("generated/")]
+            more.sort(key=lambda k: -min(Image.open(os.path.join(folder, k)).size))
+            built = [b for b in built if b["kind"] == "use"]
+            for k in more[:max(0, 4 - len(built))]:
+                try:
+                    im = Image.open(os.path.join(folder, k)).convert("RGB")
+                except Exception:
+                    continue
+                built.append({"im": im, "role": "view", "kind": "use", "slot": -1, "source": k, "generated": False, "flex": True,
+                              "flex_crop": 0.3, "caption": core.short_caption(tags[k].get("desc", "")), "max_up": 3.0})
+            # owner, 2026-11-11: at least three ways of using it. What the photos do not show is generated from the
+            # product's own whole views, one distinct use each, and checked like every generated panel.
+            refs = core.real_whole_photos(folder, tags, [k for k in tags if not k.startswith("generated/")])[:2]
+            short = core.MIN_USES - len(built)
+            if short > 0 and mode != "real" and refs:
+                ideas_path = os.path.join(folder, "use_cases.json")
+                ideas = json.load(open(ideas_path, encoding="utf-8")) if os.path.exists(ideas_path) else []
+                if len(ideas) < short:
+                    try:
+                        ideas += core.use_ideas(call, llm_model.strip() or check_model.strip(), product, info,
+                                                [b["caption"] for b in built] + [u.get("caption", "") for u in ideas], short - len(ideas))
+                        json.dump(ideas, open(ideas_path, "w", encoding="utf-8"), indent=1)
+                    except Exception as e:
+                        notes.append(f"in use: could not list more uses ({str(e)[:80]})")
+                name = f'{product.get("brand", "")} {product.get("model", "")}'
+                os.makedirs(os.path.join(folder, "generated"), exist_ok=True)
+                for u in ideas:
+                    if len(built) >= core.MIN_USES:
+                        break
+                    cap = str(u.get("caption") or "IN USE").upper()[:30]
+                    file = f"generated/use_{core.slug(cap)[:30].lower()}.png"
+                    path = os.path.join(folder, file)
+                    try:
+                        im = Image.open(path).convert("RGB") if os.path.exists(path) else core.generate_view(
+                            call, folder, u["what"], refs, True, kind="use")
+                    except Exception as e:
+                        notes.append(f"in use: {cap} failed to generate ({str(e)[:80]})")
+                        continue
+                    im.save(path)
+                    cand = {"im": im, "role": "view", "kind": "use", "slot": -1, "source": file, "generated": True, "flex": True,
+                            "flex_crop": 0.3, "caption": cap + (" (GENERATED)" if mode == "mixed" else ""), "max_up": 3.0}
+                    if check_model.strip():
+                        ok, _bad = core.verify_panels(call, name, [cand], check_model.strip(), keep_min=0)
+                        if not ok:
+                            notes.append(f"in use: {cap} was generated but refused by the check")
+                            os.replace(path, path[:-4] + "_refused.png")
+                            continue
+                    built.append(cand)
+        if not built:
+            raise ValueError(f'Nothing to show on the "{variant}" sheet: Product Research found no photos for it.')
 
         title = f'{product.get("brand", "")} {product.get("model", "")} - {product.get("name", "")}'.strip(" -").upper()
+        if variant != "all in one":
+            title += " - " + variant.upper()
         size_line = next(((ln.split(":", 1)[1] if ":" in ln else ln[4:]).strip() for ln in info.splitlines() if ln.upper().startswith("SIZE")), "")
         subtitle = (size_line + " " if size_line else "") + "Close-ups are enlarged crops of the same product: use them for detail, not for size."
-        report = None
-        for hero_weight in (None, 3.4, 4.4, 6.0, 9.0, 14.0):          # G1: give the whole views more height until they own 40 % of the sheet
-            sheet, rows = core.compose(built, title, subtitle[:230], size=size, hero_weight=hero_weight, height=sheet_h)
-            report = core.gate_report(slots, built, rows, size, profile, height=sheet_h)
-            if not any(f.startswith("G1: whole-product panels") for f in report["fatal"]):
-                break
+        mf = core.min_font_for(size, sheet_h)
+        text_done = {}
+
+        def compose_best(panels):
+            """The collage: rows, or the first panel large with the others stacked beside it - each is drawn and the one
+            with the most picture (least white) that keeps the whole views large enough is kept (owner's rule: no wasted
+            white). Then the text is written into the white that is left, never in a panel of its own."""
+            best = None
+            for arr in core.arrangements(panels):
+                for hw in (None, 3.4, 4.4, 6.0, 9.0, 14.0):            # G1: give the whole views more height until they own 40 % of the sheet
+                    trial, trows = core.compose(arr, title, subtitle[:230], size=size, hero_weight=hw, height=sheet_h)
+                    trep = core.gate_report(slots, panels, trows, size, profile, height=sheet_h, variant=variant)
+                    if not any(f.startswith("G1: whole-product panels") for f in trep["fatal"]):
+                        break
+                score = core.sheet_fill(trial) - (0.5 if any(f.startswith("G1:") for f in trep["fatal"]) else 0)
+                if best is None or score > best[0]:
+                    best = (score, trial, trows, trep)
+            _s, sh, rw, rp = best
+            if spec_panel and spec:
+                text_done.update(core.place_text(sh, rw, spec, variant, mf))
+            return sh, rw, rp
+
+        sheet, rows, report = compose_best(built)
         # final QA: one model looks at the finished sheet as a whole against the hierarchy. What it can fix by removing
         # a bad secondary panel is fixed and the sheet is judged once more; what remains is reported and blocks a strict run.
         qa, rounds = {"pass": True, "issues": [], "not_run": "no check model"}, []
@@ -392,7 +509,7 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
             name = f'{product.get("brand", "")} {product.get("model", "")} {product.get("name", "")}'
             for qa_round in range(2):
                 qa = core.qa_sheet(call, name, sheet, [r["caption"] for r in rows], llm_model.strip(), profile,
-                                   composition=str((spec or {}).get("summary") or ""))
+                                   composition=str((spec or {}).get("summary") or ""), variant=variant)
                 rounds.append(qa)
                 removable = {"artefact", "marketing_text", "wrong_caption", "duplicate", "product_cut"}
                 first_whole = next((b for b in built if b["kind"] == "whole"), None)
@@ -417,8 +534,7 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                         for g, why in gone:
                             slots[g["slot"]]["dropped"] = "REPEAT: " + why
                             notes.append(f'{g["caption"]}: dropped - {why}')
-                        sheet, rows = core.compose(built, title, subtitle[:230], size=size, hero_weight=hero_weight, height=sheet_h)
-                        report = core.gate_report(slots, built, rows, size, profile, height=sheet_h)
+                        sheet, rows, report = compose_best(built)
                         continue
                 bad = [b for b in built if b is not first_whole and b["generated"]
                        and sum(1 for x in built if x["kind"] == b["kind"]) > 1 and any(
@@ -434,55 +550,57 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                         cand = cut_closeup(b["slot"], slots[b["slot"]])
                         if cand:
                             built.append(cand)
-                sheet, rows = core.compose(built, title, subtitle[:230], size=size, hero_weight=hero_weight, height=sheet_h)
-                report = core.gate_report(slots, built, rows, size, profile, height=sheet_h)
+                sheet, rows, report = compose_best(built)
             for i in qa["issues"]:
                 report["fatal"].append(f'QA {i.get("code")}: {i.get("panel", "SHEET")} - {str(i.get("why", ""))[:140]}')
         report["qa"] = qa
+
+        # Legibility: what an image model sees is this sheet scaled to about 1248 px (1664 x 928 in 16:9). The texts we
+        # draw are sized for that by construction; this checks the texts printed on the product. When the controls are
+        # not readable, the controls panel is given more room once and the sheet is checked again.
+        legible = {"not_run": "no check model"}
+        if check_model.strip() and spec:
+            caps = [r["caption"] for r in rows]
+            legible = core.legibility(call, sheet, spec, check_model.strip(), caps)
+            labels = legible.get("labels", [])
+            ok = sum(1 for x in labels if x["ok"])
+            controls = [b for b in built if b["kind"] == "controls"]
+            if labels and ok < 0.6 * len(labels) and controls:
+                for b in controls:
+                    b["weight"] = 5.0
+                sheet, rows, report = compose_best(built)
+                report["qa"] = qa
+                again = core.legibility(call, sheet, spec, check_model.strip(), [r["caption"] for r in rows])
+                again["first_try"] = f"{ok}/{len(labels)} labels readable; the control panel was enlarged"
+                legible = again
+                labels = legible.get("labels", [])
+                ok = sum(1 for x in labels if x["ok"])
+            if labels:
+                legible["labels_readable"] = f"{ok}/{len(labels)}"
+                if ok < 0.6 * len(labels) and controls and variant in ("all in one", "details"):
+                    report["fatal"].append(f"L2: at the size an image model sees ({legible['model_view'][0]} px), only {ok} of "
+                                           f"{len(labels)} labels printed on the product can be read")
+            bad_caps = [x["name"] for x in legible.get("captions", []) if not x["ok"]]
+            if bad_caps:
+                legible["captions_unreadable"] = bad_caps
+        report["legibility"] = legible
+        # how much of the sheet is picture, not white (owner's rule: organise the collage, do not leave white)
+        report["fill"] = core.sheet_fill(sheet)
+        report["text"] = dict(text_done)
+        if variant == "in use" and sum(1 for b in built if b["kind"] == "use") < core.MIN_USES:
+            report["fatal"].append(f'U1: the in-use sheet shows {sum(1 for b in built if b["kind"] == "use")} uses; at least {core.MIN_USES} are required')
+        if report["fill"] < 0.40:
+            report["fatal"].append(f'G2: only {int(report["fill"] * 100)} % of the sheet is picture (the hand-approved sheets are 55-58 %)')
         report["qa_first_round"] = rounds[0]["issues"] if len(rounds) > 1 else []
         json.dump({"slots": slots, "notes": notes}, open(plan_path, "w", encoding="utf-8"), indent=1)
-        out = {"mode": mode, "size": size, "profile": profile, "gates": report, "notes": notes, "panels": rows,
-               "saved": os.path.join(folder, f"sheet_{mode}.png")}
-        json.dump(out, open(os.path.join(folder, f"sheet_{mode}_info.json"), "w", encoding="utf-8"), indent=1)
+        out = {"mode": mode, "variant": variant, "size": [size, sheet_h], "profile": profile, "gates": report, "notes": notes,
+               "panels": rows, "saved": os.path.join(folder, f"sheet_{mode}{suffix}.png")}
+        json.dump(out, open(os.path.join(folder, f"sheet_{mode}{suffix}_info.json"), "w", encoding="utf-8"), indent=1)
         if report["fatal"] and strict:
-            sheet.save(os.path.join(folder, f"sheet_{mode}_REJECTED.png"))
+            sheet.save(os.path.join(folder, f"sheet_{mode}{suffix}_REJECTED.png"))
             raise ValueError("The sheet failed a hard gate and was not delivered: " + "; ".join(report["fatal"])
-                             + f". A copy for inspection is in sheet_{mode}_REJECTED.png. Notes: " + " | ".join(notes[:6]))
-        sheet.save(os.path.join(folder, f"sheet_{mode}.png"))
+                             + f". A copy for inspection is in sheet_{mode}{suffix}_REJECTED.png. Notes: " + " | ".join(notes[:6]))
+        sheet.save(os.path.join(folder, f"sheet_{mode}{suffix}.png"))
         tensor = torch.from_numpy(np.array(sheet).astype(np.float32) / 255.0).unsqueeze(0)
-        if sheets == "set of 3":
-            # Three sheets instead of one, so each thing is drawn larger: the product, its close-ups and details, and the
-            # product in use. The in-use sheet also takes up to three more real photos of it being used.
-            used = {b["source"] for b in built}
-            # in-use photos keep their scene: the room, the hands and the food are what this sheet is for. Only photos
-            # of this product alone are taken (the tagger's parts list must not name another appliance), never one
-            # the colour check set aside.
-            more = [k for k, t in tags.items() if t.get("view") in ("in hand", "in use") and t.get("same_product") is not False
-                    and t.get("banner", "none") in ("none", None) and t.get("background") not in ("graphic", "white") and k not in used
-                    and not k.startswith("generated/")]
-            more.sort(key=lambda k: -min(Image.open(os.path.join(folder, k)).size))
-            in_use = [b for b in built if b["kind"] == "use"]
-            for k in more[:max(0, 4 - len(in_use))]:
-                try:
-                    im = Image.open(os.path.join(folder, k)).convert("RGB")
-                except Exception:
-                    continue
-                in_use.append({"im": im, "role": "view", "kind": "use", "slot": -1, "source": k, "generated": False,
-                               "caption": "IN USE - " + str(tags[k].get("desc", ""))[:34].upper().rstrip(" ."), "max_up": 3.0})
-            groups = (("product", [b for b in built if b["kind"] in ("whole", "state", "spec")]),
-                      ("details", [b for b in built if b["kind"] in ("controls", "detail", "part")]),
-                      ("in_use", in_use))
-            tensors, files = [], []
-            for label, panels in groups:
-                if not panels:
-                    continue
-                part, _rows = core.compose(panels, f'{title} - {label.replace("_", " ").upper()}', subtitle[:230], size=size, height=sheet_h)
-                path = os.path.join(folder, f"sheet_{mode}_{label}.png")
-                part.save(path)
-                files.append(path)
-                tensors.append(torch.from_numpy(np.array(part).astype(np.float32) / 255.0).unsqueeze(0))
-            if tensors:
-                tensor = torch.cat(tensors, dim=0)
-                out["sheets"] = files
         scene = core.read_scene(call, folder, product, info, llm_model)        # written by Product Research; made here if missing
         return (tensor, info, json.dumps(out, indent=1), scene)

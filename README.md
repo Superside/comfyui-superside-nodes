@@ -738,14 +738,40 @@ list of slots with the best photo for each; code frames every picture, packs the
   they sit and what is printed on them ("4 knobs ... Temperature knob reads: Warm, 250, 300 ..."), accessories,
   materials and the sizes the maker states (never estimated). Product Research writes it and puts its one-line
   summary first in the product info, so every prompt carries the counts; the final QA is told the counts too.
-- **Text on the sheet (`spec_panel`, on by default).** Two panels use space that used to be white: WHAT IT IS MADE OF
-  (the composition as text, in two columns) and, when the maker states sizes, a whole view with dimension lines.
-  Text always sits in a panel of its own, never over a photograph.
+- **Text on the sheet (`spec_panel`, on by default; owner, 2026-11-11: "the aim is pictures, text fills the white
+  above or below").** The collage is pictures only; no panel is given to text. After the layout, the white left in
+  each cell around its picture is measured and the text is written there, at the minimum readable size: on the
+  product sheet what it is made of, sizes, materials and parts; on the details sheet what each control reads, the
+  accessories and the materials. A heading is only written when its first item fits under it; what does not fit is
+  left out and counted in `report.text`. When the maker states sizes, dimension lines are drawn in the margins of
+  the front view itself. Text never sits over a photograph.
+- **Collage without wasted white (owner's rule).** Rows alone leave a 16:9 sheet half white, so several arrangements
+  are drawn - rows, and the first panel large with the others stacked beside it in pairs or threes - and the one with
+  the most picture that keeps the whole views at least 40 % of the sheet is kept. In-use scenes and texture patches
+  are cropped to fill their cell, pale studio gradients are trimmed, and a sheet whose pictures cover less than 40 %
+  of it is flagged G2 (hand-approved sheets measure 55-58 %).
+- **At least three uses on the in-use sheet (owner, 2026-11-11).** Real in-use photos come first. When Product
+  Research found fewer than three, the text model lists distinct, realistic uses of this product (saved in
+  `use_cases.json`, so a rerun does not ask again) and one image of each is generated from the product's own whole
+  views and checked like any generated panel. A sheet that still shows fewer than three is flagged U1.
+- **One texture per material.** The details sheet shows a square patch of each main material (up to three), found in
+  a real photo where the surface is even and has few strong edges, so a texture is never a strip of edge or a window.
 - **`format`: 1:1 or 16:9.** In 16:9 `size` is the width.
-- **`sheets`: one sheet or a set of 3.** The set returns three images in one batch and saves them as
-  `sheet_<mode>_product.png`, `_details.png` and `_in_use.png`: the product with its composition and sizes; its
-  close-ups, details and accessories; and the product in use (up to four real photos, kept with their scene). Each
-  thing is drawn larger than on one sheet. The gates and the final QA still run on the single sheet.
+- **`variant`: all in one, product, details or in use.** Connect the node three times to the same `product_dir` for
+  the full set (the workflow `product_SET_research_three_sheets_render` does this): **product** is the whole
+  product, its counted parts and its sizes; **details** is the control close-ups, the logo, a texture patch of the
+  main material and the accessories; **in use** is the product being used, real photos kept with their scene. The
+  three share one plan and one set of generated views, so they agree with each other and the second and third cost
+  only their checks. Each is saved as `sheet_<mode>_<variant>.png` with its own `_info.json`, and the gates and the
+  final QA judge each against what it is for (a details sheet is not asked for a whole view).
+- **Legibility at model size (owner, 2026-11-11).** An image model scales its input to fit about 1536 patches of
+  32 x 32 px: a square sheet is seen at about 1248 x 1248, a 16:9 sheet at about 1664 x 928, and text under about
+  12-16 px at that size cannot be read. So every text drawn on a sheet (title, captions, the composition panel,
+  dimension labels) is sized to be at least 16 px at model size - text is cut, never shrunk below that - and text
+  panels are drawn for their exact cell after the layout. Then the sheet is scaled to model size and a vision model
+  transcribes the labels printed on the product; they are compared with the composition. If fewer than 60 % read,
+  the control panel is given more room and the sheet is checked again; the result is in `gates.legibility` and a
+  details or all-in-one sheet that still fails is flagged L2.
 - **Same angle.** Two whole views with the same outline are the same angle, whatever their tags say: one goes.
 - **Always on white.** Any panel whose border is not near white (a flat colour, a gradient, a room) has its background
   removed, the in-use photo included (the hand stays). Cut-outs are kept in `clean/` so they are paid for once.
@@ -767,7 +793,7 @@ list of slots with the best photo for each; code frames every picture, packs the
   hand-made one. A saved `sheet_plan_<mode>.json` can be edited by hand and is reused while `reuse_plan` is on.
 - **Inputs:** `product_dir`, `api_key` - optional: `mode`, `max_generated` (6; each new view is one GPT Image 2.5 Sunburst
   call at quality high), `isolate_busy_photos`, `size`, `llm_model`, `check_model`, `reuse_plan`, `strict`, `include_parts`,
-  `format` (1:1), `sheets` (one sheet), `spec_panel` (on)
+  `format` (1:1), `variant` (all in one), `spec_panel` (on)
 - **Outputs:** `sheet` (IMAGE), `product_info` (STRING), `info` (STRING, JSON: gates with the QA findings, notes,
   panels), `scene_prompt` (STRING: one scene of the product in real use, for the render step)
 - **Saved in `product_dir`:** `sheet_<mode>.png`, `sheet_<mode>_info.json`, `sheet_plan_<mode>.json`, `generated/`,

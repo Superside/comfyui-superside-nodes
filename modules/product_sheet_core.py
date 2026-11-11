@@ -606,6 +606,32 @@ def write_scene(call, folder, product, info, model):
     return text
 
 
+MIN_USES = 3          # owner, 2026-11-11: the in-use sheet shows at least three ways the product is used
+
+USE_IDEAS = """Product: {name} ({category}).
+{info}
+
+The reference sheet for this product must show it being used in {n} more ways, different from these already shown:
+{have}
+Name {n} common, realistic uses of exactly this product, each a different moment or task (for a cooker: frying,
+baking, taking food out; for a coffee maker: filling the tank, brewing, pouring a cup). Each is one sentence that a
+photographer could shoot: who does what with the product, which part they touch, what food or object is involved, in
+a home kitchen or the usual place. The product keeps its real look and finish; it is not modified.
+Answer one JSON object: {{"uses": [{{"caption": "2-4 WORDS IN CAPITALS", "what": "the sentence"}}]}}"""
+
+
+def use_ideas(call, model, product, info, have, n):
+    """Distinct ways this product is used, to generate when Product Research found fewer than MIN_USES in-use photos."""
+    if n <= 0:
+        return []
+    text = llm(call, model, USE_IDEAS.format(
+        name=f'{product.get("brand", "")} {product.get("model", "")} {product.get("name", "")}'.strip(),
+        category=product.get("category", ""), info=(info or "")[:1500], n=n,
+        have="\n".join(f"- {h}" for h in have) or "- (none yet)"), max_tokens=800)
+    got = (parse_json(text) or {}).get("uses") or []
+    return [u for u in got if isinstance(u, dict) and u.get("what")][:n]
+
+
 def read_scene(call, folder, product, info, model):
     path = os.path.join(folder, "scene_prompt.txt")
     if os.path.exists(path):
@@ -965,29 +991,31 @@ def touches_edge(im, tol=45, run=0.12):   # tol is high on purpose: a soft floor
     return False
 
 
-def gate_report(slots, built, rows, size, profile=None, height=None):
+def gate_report(slots, built, rows, size, profile=None, height=None, variant="all in one"):
     """What the finished sheet covers, as plain facts. `fatal` lists gates that must stop delivery."""
     area = lambda r: r["box"][2] * r["box"][3]                                           # noqa: E731
     hero = sum(area(r) for r in rows if r["role"] == "hero") / float(size * (height or size))
     biggest_hero = max([area(r) for r in rows if r["role"] == "hero"] or [0])
     fatal = []
-    if not any(b.get("kind") == "whole" for b in built):
+    whole_sheet = variant in ("all in one", "product")
+    if whole_sheet and not any(b.get("kind") == "whole" for b in built):
         fatal.append("G1/G3: no whole-product view could be placed")
-    if hero < 0.38:
+    if whole_sheet and hero < 0.38:
         fatal.append(f"G1: whole-product panels take {hero:.0%} of the sheet (minimum 40 %)")
     tallest_hero = max([r["box"][3] for r in rows if r["role"] == "hero"] or [0])
-    if any(r["box"][3] > tallest_hero * 1.02 for r in rows if r["role"] != "hero"):
+    if whole_sheet and any(r["box"][3] > tallest_hero * 1.02 for r in rows if r["role"] != "hero" and r.get("kind") != "spec"):
         fatal.append("G1: a panel is taller than the whole views")       # height, not area: a full-width control strip is fine
     controls = [r for r in rows if r.get("kind") == "controls"]
     if controls and max(r["box"][2] for r in controls) < 0.3 * size and max(r["scale"] for r in controls) < 0.6:
         fatal.append("G7: the control close-up is small: narrower than half the sheet and shown below its source size")
-    if any(area(r) > 0.8 * biggest_hero for r in rows if r.get("kind") == "part"):
+    if whole_sheet and any(area(r) > 0.8 * biggest_hero for r in rows if r.get("kind") == "part"):
         fatal.append("G8: an accessory is drawn as large as the product itself")
     gone = [s for s in slots if s.get("missing") or s.get("dropped")]
-    needed = [k for k, trait in (("controls", "has_controls"), ("use", "handheld")) if applies(profile, trait)]
+    needed = [k for k, trait in (("controls", "has_controls"), ("use", "handheld")) if applies(profile, trait)
+              and (variant == "all in one" or (k == "controls" and variant == "details") or (k == "use" and variant == "in use"))]
     required = [s["caption"] for s in gone if s["kind"] in needed
                 and not any(b.get("kind") == s["kind"] for b in built)]
-    required += [s["caption"] for s in gone if s["caption"].startswith("LOGO")
+    required += [s["caption"] for s in gone if s["caption"].startswith("LOGO") and variant in ("all in one", "details")
                  and not any(re.search(r"LOGO|BADGE|BRAND", b.get("caption", "")) for b in built)]
     if required:
         fatal.append("G9: a required panel is missing: " + ", ".join(required))
@@ -1031,6 +1059,25 @@ def trim_plain(im, tol=14, pad=0.03):
         return im
     px, py = int(im.width * pad), int(im.height * pad)
     return im.crop((max(0, box[0] - px), max(0, box[1] - py), min(im.width, box[2] + px), min(im.height, box[3] + py)))
+
+
+def trim_light(im, pad=0.03, light=232, sat=14):
+    """Crop away a light backdrop that is not one flat colour (a pale grey gradient, a soft studio sweep): what is
+    darker than `light` or has colour is the product. Used after trim_plain, which only removes one flat colour."""
+    import numpy as np
+    small = im.convert("RGB").copy()
+    small.thumbnail((800, 800))
+    a = np.asarray(small, dtype=np.int16)
+    mask = (a.min(2) < light) | ((a.max(2) - a.min(2)) > sat)
+    ys, xs = np.nonzero(mask)
+    if len(xs) < 50:
+        return im
+    k = im.width / small.width
+    x0, x1, y0, y1 = xs.min() * k, (xs.max() + 1) * k, ys.min() * k, (ys.max() + 1) * k
+    if (x1 - x0) * (y1 - y0) > 0.85 * im.width * im.height:
+        return im
+    px, py = (x1 - x0) * pad, (y1 - y0) * pad
+    return im.crop((int(max(0, x0 - px)), int(max(0, y0 - py)), int(min(im.width, x1 + px)), int(min(im.height, y1 + py))))
 
 
 def banner_crop(im, where, share=0.2):
@@ -1142,7 +1189,7 @@ def prepare_panel(call, folder, panel, tags, isolate_busy):
         return out
     im = banner_crop(im, t.get("banner", "none"))
     if plain_background(im):
-        return trim_plain(im)
+        return trim_light(trim_plain(im))
     # anything else - a flat colour, a gradient, a room - is cut away: the product sits on white in every panel.
     # In the in-use panel the hand or person stays and the room goes. Not for pictures with no outline to cut.
     if isolate_busy and t.get("view") not in ("interior", "detail close-up", "controls close-up", "logo close-up", "infographic"):
@@ -1217,89 +1264,192 @@ def _wrap(d, text, f, max_w):
     return lines + ([cur] if cur else [])
 
 
-def spec_panel(spec, width=2800, columns=2):
-    """The composition as a panel of text: counted parts with what is printed on them, accessories, materials, sizes.
-    Text sits in a panel of its own, never over a photograph, so an image model does not read it as printed on the
-    product. Two columns: a tall narrow column of text forced every other panel of the sheet into one thin row."""
-    head, body = font(46), font(38, bold=False)
-    probe = ImageDraw.Draw(Image.new("RGB", (8, 8)))
+# What an image model sees of a sheet: the picture is scaled down until it fits a budget of 1536 patches of 32 x 32 px
+# (a square becomes about 1248 x 1248, a 16:9 sheet about 1664 x 928). Text needs about 12 to 16 px of height at that
+# size to be read; under about 10 px its letters blur inside one patch (owner, 2026-11-11). Every text drawn on a sheet
+# is therefore sized for that scale, and a legibility check looks at the sheet at that scale.
+PATCH, PATCH_BUDGET, MIN_TEXT_PX, HARD_TEXT_PX = 32, 1536, 16, 12
+
+
+def model_view(w, h):
+    """(scale, width, height) of a w x h image as an image model sees it."""
+    k = min(1.0, (PATCH_BUDGET * PATCH * PATCH / float(w * h)) ** 0.5)
+    return k, max(PATCH, int(w * k) // PATCH * PATCH), max(PATCH, int(h * k) // PATCH * PATCH)
+
+
+def min_font_for(w, h, px=MIN_TEXT_PX):
+    """The smallest font size (em, in sheet pixels) whose letters are px tall once the sheet is scaled to model size."""
+    k, _w, _h = model_view(w, h)
+    return int(px / k + 0.999)
+
+
+def _spec_blocks(spec):
     blocks = []
     if spec.get("summary"):
         blocks.append(("MADE OF", [spec["summary"]]))
-    comps = [f'{c.get("count", 1)} x {c.get("name", "")}' + (f' - reads: {c["label"]}' if c.get("label") else "") for c in (spec.get("components") or [])[:12] if c.get("name")]
+    comps = [f'{c.get("count", 1)} x {c.get("name", "")}' + (f' - reads: {c["label"]}' if c.get("label") else "")
+             for c in (spec.get("components") or [])[:12] if c.get("name")]
     if comps:
         blocks.append(("PARTS, COUNTED", comps))
-    acc = [f'{a.get("count", 1)} x {a.get("name", "")}' for a in (spec.get("accessories") or [])[:8] if a.get("name")]
-    if acc:
-        blocks.append(("ACCESSORIES", acc))
-    if spec.get("materials"):
-        blocks.append(("MATERIALS", [str(m) for m in spec["materials"][:5]]))
     dims = spec.get("dimensions") or {}
     sizes = [f"{k}: {dims[k]}" for k in ("width", "depth", "height", "weight", "capacity") if dims.get(k)]
     if sizes:
         blocks.append(("SIZE (" + str(dims.get("source") or "stated by the maker")[:60] + ")", sizes))
+    acc = [f'{x.get("count", 1)} x {x.get("name", "")}' for x in (spec.get("accessories") or [])[:8] if x.get("name")]
+    if acc:
+        blocks.append(("ACCESSORIES", acc))
+    if spec.get("materials"):
+        blocks.append(("MATERIALS", [str(m) for m in spec["materials"][:5]]))
+    return blocks
+
+
+def _text_columns(blocks, width, size, columns):
+    """Lay text blocks out in columns at one font size. Returns (columns of [(text, bold, indent)], height)."""
+    head, body = font(int(size * 1.15)), font(size, bold=False)
+    probe = ImageDraw.Draw(Image.new("RGB", (8, 8)))
+    pad, gap = int(size * 1.2), int(size * 1.4)
+    col_w = (width - 2 * pad - gap * (columns - 1)) // columns
+    lh, sep = int(size * 1.4), int(size * 0.7)
+    laid = []
+    for title, items in blocks:
+        lines = [(title, True, 0)]
+        for it in items:
+            for i, ln in enumerate(_wrap(probe, it, body, col_w - int(size * 1.6))):
+                lines.append((ln, False, 0 if i == 0 else int(size * 1.1)))
+        laid.append((lines, lh * len(lines) + sep))
+    total = sum(h for _l, h in laid)
+    cols, run = [[]], 0
+    for lines, h in laid:
+        if cols[-1] and run + h / 2 > total / columns and len(cols) < columns:
+            cols.append([])
+            run = 0
+        cols[-1].append((lines, h))
+        run += h
+    height = 2 * pad + max(sum(h for _l, h in c) for c in cols)
+    return cols, height, (head, body, pad, gap, col_w, lh, sep)
+
+
+def spec_panel(spec, width=2800, height=None, min_font=38):
+    """The composition as a panel of text: counted parts with what is printed on them, sizes, accessories, materials.
+    It sits in a panel of its own, never over a photograph, so an image model does not read it as printed on the
+    product. With a height it is drawn for that exact cell: the largest font that fits, never below min_font; when
+    even min_font does not fit, the least important lines are left out - the text is never shrunk below readable."""
+    blocks = _spec_blocks(spec)
     if not blocks:
         return None
-    col_w = (width - 80 * (columns + 1)) // columns
-    laid = []                                            # per block: its lines (text, font, indent) and its height
-    for title, items in blocks:
-        lines = [(title, head, 0)]
-        for it in items:
-            for i, ln in enumerate(_wrap(probe, it, body, col_w - 90)):
-                lines.append((ln, body, 0 if i == 0 else 44))
-        laid.append((lines, 58 * len(lines) + 30))
-    total = sum(h for _l, h in laid)
-    cols, cur, run = [[]], 0, 0
-    for lines, h in laid:                                # fill a column to about its share, then start the next
-        if cols[cur] and run + h / 2 > total / columns and cur < columns - 1:
-            cols.append([])
-            cur, run = cur + 1, 0
-        cols[cur].append((lines, h))
-        run += h
-    height = 80 + max(sum(h for _l, h in c) for c in cols)
+    if height is None:
+        cols, h, m = _text_columns(blocks, width, min_font, 2)
+        height = h
+        chosen = (cols, m)
+    else:
+        chosen = None
+        trimmed = [(t, list(i)) for t, i in blocks]
+        while chosen is None:
+            for size in range(int(min_font * 1.6), min_font - 1, -2):
+                columns = max(1, min(3, int(width / (size * 24))))
+                cols, h, m = _text_columns(trimmed, width, size, columns)
+                if h <= height:
+                    chosen = (cols, m)
+                    break
+            if chosen is None:                           # drop the last line of the least important block, then the block
+                if len(trimmed) == 1 and len(trimmed[0][1]) <= 1:
+                    cols, h, m = _text_columns(trimmed, width, min_font, 1)
+                    chosen = (cols, m)
+                    break
+                if len(trimmed[-1][1]) > 1:
+                    trimmed[-1][1].pop()
+                else:
+                    trimmed.pop()
+    cols, (head, body, pad, gap, col_w, lh, sep) = chosen
     im = Image.new("RGB", (width, height), (255, 255, 255))
     d = ImageDraw.Draw(im)
     for ci, col in enumerate(cols):
-        x0, y = 80 + ci * (col_w + 80), 40
+        x0, y = pad + ci * (col_w + gap), pad
         for lines, _h in col:
-            for text, f, indent in lines:
-                if f is body and not indent:
-                    d.ellipse((x0 + 2, y + 16, x0 + 16, y + 30), fill=(20, 20, 20))
-                d.text((x0 + (40 + indent if f is body else 0), y), text, fill=(20, 20, 20) if f is head else (40, 40, 40), font=f)
-                y += 58
-            y += 30
+            for text, bold, indent in lines:
+                if not bold and not indent:
+                    r = body.size * 0.18
+                    d.ellipse((x0, y + body.size * 0.45 - r, x0 + 2 * r, y + body.size * 0.45 + r), fill=(20, 20, 20))
+                d.text((x0 + (0 if bold else int(body.size * 0.8) + indent), y), text,
+                       fill=(20, 20, 20) if bold else (40, 40, 40), font=head if bold else body)
+                y += lh
+            y += sep
     return im
 
 
-def dimension_panel(im, dims):
-    """A whole view with its stated width and height drawn as dimension lines (never estimated: only what the maker states)."""
+def dimension_panel(im, dims, width=None, height=None, font_px=52):
+    """A whole view with its stated width and height drawn as dimension lines (never estimated: only what the maker
+    states). With width and height it is drawn for that exact cell, its labels font_px high."""
     w_txt, h_txt = (dims or {}).get("width"), (dims or {}).get("height")
     if not (w_txt or h_txt):
         return None
     im = im.convert("RGB")
-    scale = 1400 / max(im.size)
-    im = im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
-    m, f, ink = 190, font(52), (20, 20, 20)
-    out = Image.new("RGB", (im.width + 2 * m, im.height + 2 * m), (255, 255, 255))
-    out.paste(im, (m, m))
+    f, ink = font(font_px), (20, 20, 20)
+    m = int(font_px * 3.4)
+    W, H = (width, height) if width and height else (int(max(im.size) * 1.0) + 2 * m, int(max(im.size) * im.height / max(im.size)) + 2 * m)
+    box_w, box_h = max(10, W - 2 * m), max(10, H - 2 * m)
+    k = min(box_w / im.width, box_h / im.height)
+    im = im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS)
+    out = Image.new("RGB", (W, H), (255, 255, 255))
+    x0, y0 = (W - im.width) // 2, (H - im.height) // 2
+    out.paste(im, (x0, y0))
     d = ImageDraw.Draw(out)
+    lw, t = max(4, font_px // 9), int(font_px * 0.5)
     if w_txt:
-        y = m + im.height + 70
-        d.line([(m, y), (m + im.width, y)], fill=ink, width=6)
-        for x in (m, m + im.width):
-            d.line([(x, y - 26), (x, y + 26)], fill=ink, width=6)
-        d.text((m + (im.width - d.textlength(str(w_txt), font=f)) / 2, y + 30), str(w_txt), fill=ink, font=f)
+        y = y0 + im.height + int(font_px * 0.9)
+        d.line([(x0, y), (x0 + im.width, y)], fill=ink, width=lw)
+        for x in (x0, x0 + im.width):
+            d.line([(x, y - t), (x, y + t)], fill=ink, width=lw)
+        d.text((x0 + (im.width - d.textlength(str(w_txt), font=f)) / 2, y + t), str(w_txt), fill=ink, font=f)
     if h_txt:
-        x = m + im.width + 70
-        d.line([(x, m), (x, m + im.height)], fill=ink, width=6)
-        for y in (m, m + im.height):
-            d.line([(x - 26, y), (x + 26, y)], fill=ink, width=6)
-        label = Image.new("RGB", (int(d.textlength(str(h_txt), font=f)) + 20, 70), (255, 255, 255))
-        ImageDraw.Draw(label).text((10, 4), str(h_txt), fill=ink, font=f)
+        x = x0 + im.width + int(font_px * 0.9)
+        d.line([(x, y0), (x, y0 + im.height)], fill=ink, width=lw)
+        for y in (y0, y0 + im.height):
+            d.line([(x - t, y), (x + t, y)], fill=ink, width=lw)
+        label = Image.new("RGB", (int(d.textlength(str(h_txt), font=f)) + 20, int(font_px * 1.4)), (255, 255, 255))
+        ImageDraw.Draw(label).text((10, 2), str(h_txt), fill=ink, font=f)
         label = label.rotate(90, expand=True)
-        out.paste(label, (x + 28, m + (im.height - label.height) // 2))
+        out.paste(label, (min(W - label.width, x + t), y0 + (im.height - label.height) // 2))
     if (dims or {}).get("depth"):
-        d.text((m, 60), "depth: " + str(dims["depth"]), fill=ink, font=f)
+        d.text((x0, max(4, y0 - int(font_px * 1.6))), "depth: " + str(dims["depth"]), fill=ink, font=f)
+    return out
+
+
+LEGIBLE = """This is a product reference sheet at the exact size an image model sees it. Read it the way that model would.
+For each numbered place below, write the text you can actually read there, letter by letter. Do not guess from what
+the product probably says: if letters are blurred, leave that out. Write "" when you cannot read anything.
+{items}
+Answer one JSON object {{"read": [{{"n": 1, "text": ""}}]}}"""
+
+
+def _tokens(text):
+    return [t for t in re.findall(r"[a-z0-9]+", str(text).lower()) if len(t) >= 2 or t.isdigit()]
+
+
+def legibility(call, sheet, spec, model, captions=()):
+    """Scale the sheet to the size an image model sees and check, with a vision model, which texts can still be read:
+    the labels printed on the product (from the composition) and the captions. Returns plain facts."""
+    k, w, h = model_view(*sheet.size)
+    small = sheet.convert("RGB").resize((w, h), Image.LANCZOS)
+    wanted = [("label", c.get("name", ""), str(c.get("label", ""))) for c in (spec or {}).get("components") or []
+              if c.get("label") and len(_tokens(c.get("label"))) >= 1][:12]
+    wanted += [("caption", c, c) for c in list(captions)[:10]]
+    out = {"model_view": [w, h], "labels": [], "captions": []}
+    if not wanted:
+        return out
+    items = "\n".join(f'{i + 1}) {"the text printed on or next to the " + n + " of the product" if kind == "label" else "the caption of a panel, it starts with: " + n.split(" ")[0]}'
+                      for i, (kind, n, _e) in enumerate(wanted))
+    try:
+        got = parse_json(llm(call, model, LEGIBLE.format(items=items), [data_url(small, max(w, h), 92)], max_tokens=2500), want=dict)
+        read = {int(g.get("n", 0)): str(g.get("text", "")) for g in got.get("read", []) if isinstance(g, dict)}
+    except Exception as e:
+        out["not_run"] = str(e)[:160]
+        return out
+    for i, (kind, n, expected) in enumerate(wanted):
+        exp, seen = _tokens(expected), set(_tokens(read.get(i + 1, "")))
+        share = (sum(1 for t in exp if t in seen) / len(exp)) if exp else 1.0
+        (out["labels"] if kind == "label" else out["captions"]).append(
+            {"name": n[:60], "expected": expected[:90], "read": read.get(i + 1, "")[:90], "ok": share >= 0.6})
     return out
 
 
@@ -1319,6 +1469,55 @@ def same_shape(a, b):
         return False
     union = sum(1 for x, y in zip(sa, sb) if x or y)
     return union > 0 and sum(1 for x, y in zip(sa, sb) if x and y) / union > 0.9
+
+
+def texture_square(im, hint=None, share=0.16):
+    """A square of bare material for a texture close-up, as fractions of the photo: the smoothest square that lies
+    wholly on the product (no background, no edge, no print), near the hint box when one is given. Measured, not asked:
+    asked for a patch of steel, a vision model gave a strip along the product's edge."""
+    from PIL import ImageFilter
+    import numpy as np
+    im = im.convert("RGB")
+    small = im.copy()
+    small.thumbnail((640, 640))
+    sx, sy = small.width / im.width, small.height / im.height
+    diff = ImageChops.difference(small, Image.new("RGB", small.size, small.getpixel((2, 2)))).convert("L").point(lambda v: 255 if v > 24 else 0)
+    box = diff.getbbox()
+    if not box:
+        return None
+    side = max(16, int(share * min(box[2] - box[0], box[3] - box[1])))
+    lum = np.asarray(small.convert("L"), dtype=np.float32)
+    blur = np.asarray(small.convert("L").filter(ImageFilter.GaussianBlur(side / 6)), dtype=np.float32)
+    strong = np.asarray(small.convert("L").filter(ImageFilter.FIND_EDGES), dtype=np.float32) > 60
+    m = np.asarray(diff, dtype=np.float32) / 255.0
+    # a texture is uniform at a large scale (no reflection, no shape) and has no strong edge (no print, seam or border);
+    # the fine grain of brushed steel or woven fabric is allowed. The hint (where a vision model says the material is)
+    # decides where to look; the measurement decides the square.
+    def candidates(x0, y0, x1, y1):
+        out, step = [], max(4, side // 4)
+        for y in range(max(box[1], y0), min(box[3], y1) - side + 1, step):
+            for x in range(max(box[0], x0), min(box[2], x1) - side + 1, step):
+                if m[y:y + side, x:x + side].mean() < 0.995:
+                    continue
+                out.append((float(blur[y:y + side, x:x + side].std()) + 400.0 * float(strong[y:y + side, x:x + side].mean())
+                            + (0 if lum[y:y + side, x:x + side].mean() > 25 else 50), x, y))
+        return out
+    best = None
+    if hint:                                              # inside the hint first, with smaller squares if the area is narrow
+        hx0, hy0, hx1, hy1 = int(hint[0] * small.width), int(hint[1] * small.height), int(hint[2] * small.width), int(hint[3] * small.height)
+        for k in (1.0, 0.6, 0.4):
+            side = max(16, int(share * k * min(box[2] - box[0], box[3] - box[1])))
+            found = candidates(hx0, hy0, hx1, hy1)
+            if found:
+                best = min(found)
+                break
+    if best is None:
+        found = candidates(0, 0, small.width, small.height)
+        best = min(found) if found else None
+    if best is None:
+        return None
+    _s, x, y = best
+    return [x / sx / im.width, y / sy / im.height, (x + side) / sx / im.width, (y + side) / sy / im.height]
 
 
 def _box_of(slot):
@@ -1358,8 +1557,11 @@ def drop_repeats(built, slots):
             elif same_photo and box and k["_box"]:
                 kb = k["_box"]
                 inter = max(0.0, min(box[2], kb[2]) - max(box[0], kb[0])) * max(0.0, min(box[3], kb[3]) - max(box[1], kb[1]))
-                small = min((box[2] - box[0]) * (box[3] - box[1]), (kb[2] - kb[0]) * (kb[3] - kb[1]))
-                if small and inter / small > 0.5:
+                a1, a2 = (box[2] - box[0]) * (box[3] - box[1]), (kb[2] - kb[0]) * (kb[3] - kb[1])
+                small, large = min(a1, a2), max(a1, a2)
+                # a much smaller cut inside a larger one is a magnification (the logo inside the control panel, a patch
+                # of brushed steel), not the same view twice
+                if small and inter / small > 0.5 and small / large > 0.35:
                     why = f'shows the same area of the same photo as "{k["caption"]}"'
             if not why and float((b["_look"] * k["_look"]).sum()) > 0.9:
                 why = f'looks the same as "{k["caption"]}"'
@@ -1441,8 +1643,27 @@ empty_space (a large blank area), product_unclear (the product alone is not the 
 Answer one JSON object: {{"pass": true or false, "issues": [{{"panel": "the caption, or SHEET", "code": "...", "why": "one sentence"}}]}}"""
 
 
-def qa_expect(profile):
-    """What the final QA may ask of this product: the hierarchy, with the parts its profile switches off left out."""
+def qa_expect(profile, variant="all in one"):
+    """What the final QA may ask of this product: the hierarchy, with the parts its profile switches off left out, and
+    only the part of it the sheet variant is for."""
+    if variant == "details":
+        lines = ["Close-ups of the product's own details, each large and sharp, on plain white: "
+                 + ("its controls with every label readable, " if applies(profile, "has_controls") else "")
+                 + "its logo, the texture of its main material, and its accessories alone.",
+                 "No whole-product view is needed on this sheet: another sheet shows the product whole."]
+        return "\n".join(f"{i + 1}. {t}" for i, t in enumerate(lines))
+    if variant == "in use":
+        return ("1. The product being used in real settings: a kitchen, a bathroom, a hand. Scenes and their backgrounds "
+                "are right here; do not ask for plain white.\n2. The same model and finish in every picture, and no added "
+                "text or graphics.\n3. No close-ups or white-background views are needed: other sheets show them.")
+    if variant == "product":
+        whole = ("All pieces of the set together, then laid out apart, on plain white." if profile and profile.get("is_set")
+                 else "The product itself, alone, complete, large and clear, on plain white.")
+        lines = [whole, "Its counted parts and sizes as text, and dimension lines when sizes are known."]
+        if applies(profile, "opens"):
+            lines.append("The product open, showing its inside.")
+        lines.append("No close-ups, accessories or hands are needed: other sheets show them.")
+        return "\n".join(f"{i + 1}. {t}" for i, t in enumerate(lines))
     whole = ("All pieces of the set together, complete, large and clear, on plain white, then laid out apart."
              if profile and profile.get("is_set") else "The product itself, alone, complete, large and clear, on plain white.")
     lines = [whole + " No coloured or graphic background anywhere."]
@@ -1457,15 +1678,18 @@ def qa_expect(profile):
     return "\n".join(f"{i + 1}. {t}" for i, t in enumerate(lines))
 
 
-def qa_sheet(call, name, sheet, captions, model, profile=None, composition=""):
+def qa_sheet(call, name, sheet, captions, model, profile=None, composition="", variant="all in one"):
     """A vision model judges the finished sheet as a whole. Returns {"pass": bool, "issues": [...]}; on failure of the
     call itself the sheet is not blocked and the answer says the check did not run."""
     try:
-        got = parse_json(llm(call, model, QA.format(name=name, caps="; ".join(captions), expect=qa_expect(profile),
+        got = parse_json(llm(call, model, QA.format(name=name, caps="; ".join(captions), expect=qa_expect(profile, variant),
                                                     composition=(f"The product is made of: {composition}. A panel that shows a different number "
                                                                  "of these parts is an artefact.\n" if composition else "")),
                              [data_url(sheet, 2000, 85)], max_tokens=1500))
         off = {code for code, trait in (("no_in_use", "handheld"), ("no_controls_closeup", "has_controls")) if not applies(profile, trait)}
+        off |= {"in use": {"coloured_background", "no_controls_closeup", "product_unclear", "empty_space"},
+                "product": {"no_controls_closeup", "no_in_use", "accessory_too_large"},
+                "details": {"no_in_use", "product_unclear"}}.get(variant, set())
         issues = [i for i in got.get("issues", []) if isinstance(i, dict) and i.get("code") and i.get("code") not in off]
         return {"pass": bool(got.get("pass")) and not issues, "issues": issues}
     except Exception as e:
@@ -1489,7 +1713,10 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
     n = len(items)
     asp = [q["im"].width / q["im"].height for q in items]
     cap = [q["im"].height * q.get("max_up", max_up) for q in items]
-    wgt = [AREA_WEIGHT.get(q.get("kind"), 1.0) for q in items]
+    wgt = [q.get("weight", AREA_WEIGHT.get(q.get("kind"), 1.0)) for q in items]
+    # A flexible panel has no fixed shape: a text panel is drawn for its cell, a texture swatch or a scene photo is cut to
+    # it. It takes whatever width its row would otherwise leave white (owner's rule: no wasted white, 2026-11-11).
+    flex = [bool(q.get("flex") or q.get("render")) for q in items]
     best = None
     for mask in range(1 << (n - 1)):
         rows, start = [], 0
@@ -1508,13 +1735,20 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
         if len(rows) > 1 or n > 3:                                                  # the product row owns at most half the sheet,
             nat = [min(h, 0.52 * (H - fixed)) if any(items[i]["role"] == "hero" for i in r) else h    # so its details stay readable
                    for h, r in zip(nat, rows)]
+            top = [h for h, r in zip(nat, rows) if any(items[i]["role"] == "hero" for i in r)]
+            if top:                                                                 # and no other row is taller than it
+                nat = [h if any(items[i]["role"] == "hero" for i in r) else min(h, max(top)) for h, r in zip(nat, rows)]
         f = min(1.0, (H - fixed) / sum(nat))
         hts = [h * f for h in nat]
         score = 0.0
+        left = []
         for r, h in zip(rows, hts):
+            room = W - gap * (len(r) - 1) - 2 * pad * len(r) - sum(asp[i] * min(h, cap[i]) for i in r)
+            nflex = sum(1 for i in r if flex[i])
+            left.append(max(0.0, room) / nflex if nflex else 0.0)
             for i in r:
                 d = min(h, cap[i])
-                score += asp[i] * d * d * wgt[i]
+                score += (asp[i] * d * d + (left[-1] * h if flex[i] else 0.0)) * wgt[i]
         hero_rows = [h for r, h in zip(rows, hts) if any(items[i]["role"] == "hero" for i in r)]
         other = [h for r, h in zip(rows, hts) if not any(items[i]["role"] == "hero" for i in r)]
         if hero_rows and other and min(hero_rows) < max(other):
@@ -1528,7 +1762,7 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
             score *= (min(hts) / (0.5 * max(hts))) ** 2                             # details are smaller than the product, not tiny
         if any(b > a * 1.05 for a, b in zip(hts, hts[1:])):
             score *= 0.3                                                            # rows follow the hierarchy: never taller further down
-        if n > 1 and any(len(r) == 1 and asp[r[0]] * min(h, cap[r[0]]) < 0.6 * (W - 2 * pad) for r, h in zip(rows, hts)):
+        if n > 1 and any(len(r) == 1 and not flex[r[0]] and asp[r[0]] * min(h, cap[r[0]]) < 0.6 * (W - 2 * pad) for r, h in zip(rows, hts)):
             score *= 0.35                                                           # one narrow picture alone in a row: white on both sides
         if any(len(r) == 1 and items[r[0]].get("kind") not in ("whole", "controls", "state") for r in rows) and n > 1:
             score *= 0.4                                                            # no accessory, detail or in-use panel gets a row to itself
@@ -1538,7 +1772,7 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
             score *= 0.4                                                            # an accessory never rivals the product
         if product and any(areas[i] > 0.9 * product for i in areas if items[i].get("kind") in ("use", "detail")):
             score *= 0.7
-        drawn = sum(asp[i] * min(h, cap[i]) ** 2 for r, h in zip(rows, hts) for i in r)
+        drawn = sum(asp[i] * min(h, cap[i]) ** 2 + (lf * h if flex[i] else 0.0) for r, h, lf in zip(rows, hts, left) for i in r)
         cells = sum((W - gap * (len(r) - 1) - 2 * pad * len(r)) * h for r, h in zip(rows, hts)) + (H - fixed - sum(hts)) * W
         score *= (drawn / max(cells, 1.0)) ** 1.5                                   # white space is paid for
         if best is None or score > best[0]:
@@ -1549,46 +1783,304 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
     out = []
     for r, h in zip(rows, hts):
         cells = [(items[i], asp[i] * h + 2 * pad) for i in r]
-        extra = (W - gap * (len(r) - 1) - sum(c[1] for c in cells)) / len(r)
-        out.append(([(q, cw + extra) for q, cw in cells], h + cap_h + 2 * pad))
+        room = W - gap * (len(r) - 1) - sum(c[1] for c in cells)
+        flexible = [k for k, i in enumerate(r) if flex[i]]
+        if flexible and room > 0:                        # the flexible panels take the room; the photos keep their size
+            out.append(([(q, cw + (room / len(flexible) if k in flexible else 0)) for k, (q, cw) in enumerate(cells)], h + cap_h + 2 * pad))
+        else:
+            out.append(([(q, cw + room / len(r)) for q, cw in cells], h + cap_h + 2 * pad))
     slack = max(0, H - sum(rh for _, rh in out) - gap * (len(out) - 1)) / len(out)
     return out, slack
 
 
+def stack_panel(panels):
+    """Panels drawn one above the other in a single cell, each with its caption: the collage form "one large panel and
+    a column of smaller ones beside it", which fills a 16:9 sheet that rows alone leave half white."""
+    def render(w, h, mf):
+        cap = int(max(60, mf) * 1.25) + 30
+        gap = 30
+        n = len(panels)
+        avail = max(10, h - n * cap - gap * (n - 1))
+        want = [w / (p["im"].width / p["im"].height) for p in panels]          # the height each would take at full width
+        k = min(1.0, avail / sum(want))
+        hs = [x * k for x in want]
+        spare = (avail - sum(hs)) / n
+        out = Image.new("RGB", (w, h), (232, 232, 232))
+        d = ImageDraw.Draw(out)
+        y = 0
+        for p, hi in zip(panels, hs):
+            ch = int(hi + spare + cap)
+            d.rectangle((0, y, w, y + ch), fill=(255, 255, 255), outline=(200, 200, 200), width=3)
+            im = p["render"](w - 40, int(hi + spare - 20), mf) if p.get("render") else p["im"]
+            if p.get("flex") and not p.get("render"):
+                im = cover(im, w - 40, int(hi + spare - 20), p.get("flex_crop", 0.3))
+            sc = min((w - 40) / im.width, (hi + spare - 20) / im.height, 40 if p["caption"].startswith("TEXTURE") else p.get("max_up", 2.6))
+            im2 = im.resize((max(1, int(im.width * sc)), max(1, int(im.height * sc))), Image.LANCZOS)
+            out.paste(im2, (int((w - im2.width) / 2), int(y + 10 + (hi + spare - 20 - im2.height) / 2)))
+            f = font(max(60, mf))
+            while f.size > mf and d.textlength(p["caption"], font=f) > w - 30:
+                f = font(f.size - 2)
+            text = p["caption"]
+            while d.textlength(text, font=f) > w - 30 and len(text) > 8:
+                text = text[:-4] + "..."
+            d.text(((w - d.textlength(text, font=f)) / 2, y + ch - cap + 12), text, fill=(20, 20, 20), font=f)
+            y += ch + gap
+        return out
+    first = panels[0]
+    return {"im": Image.new("RGB", (first["im"].width, sum(p["im"].height for p in panels)), (255, 255, 255)), "render": render,
+            "no_caption": True, "role": first["role"], "kind": first["kind"], "slot": -1, "source": first.get("source"),
+            "generated": any(p.get("generated") for p in panels), "caption": " + ".join(p["caption"] for p in panels)[:80],
+            "stack": panels, "max_up": 10}
+
+
+def arrangements(panels):
+    """Other ways to arrange a few panels than rows: the first (most important) panel large, the others stacked beside
+    it in pairs. compose() is run on each and the one with the most picture is kept."""
+    out = [panels]
+    if 3 <= len(panels) <= 6:
+        lead, rest = panels[0], panels[1:]
+        pairs = [rest[i:i + 2] for i in range(0, len(rest), 2)]
+        out.append([lead] + [stack_panel(p) if len(p) > 1 else p[0] for p in pairs])
+        if len(rest) >= 3:
+            out.append([lead] + [stack_panel(rest[:3])] + ([stack_panel(rest[3:])] if len(rest) > 4 else rest[3:]))
+    return out
+
+
+def short_caption(desc, limit=34):
+    """A caption from a photo description, cut at a word and without the obvious start ("the air fryer toaster oven is")."""
+    words = re.sub(r"^(a|an|the)\s+", "", str(desc or "in use").strip().rstrip("."), flags=re.I).split()
+    out = ""
+    for w in words:
+        if len(out) + len(w) + 1 > limit:
+            break
+        out = (out + " " + w).strip()
+    return (out or "in use").upper()
+
+
+def material_name(entry, limit=30):
+    """'Pan bodies: tri-ply - brushed (satin) stainless steel exterior, ...' -> 'BRUSHED STAINLESS STEEL', short and
+    whole-word, so a caption is never cut mid-word and two parts of the same material are seen as one."""
+    part, sep, material = str(entry).partition(":")
+    text = re.sub(r"\([^)]*\)", " ", material if sep else part)
+    text = re.split(r"[,;]|\s[-–—]\s", text)
+    words = [w for chunk in text for w in chunk.split()]
+    stop = {"tri-ply", "exterior", "interior", "finish", "with", "and", "on", "top", "the", "a", "solid", "core", "layer"}
+    words = [w for w in words if w.lower() not in stop]
+    out = ""
+    for w in words:
+        if len(out) + len(w) + 1 > limit:
+            break
+        out = (out + " " + w).strip()
+    return out.upper(), (part.strip() if sep else "")
+
+
+def text_lines(spec, variant):
+    """What a sheet says in words, by variant: the product sheet its make-up, materials and sizes; the details sheet what
+    every control reads, the accessories and materials. Blocks in order of importance."""
+    if not spec:
+        return []
+    dims = spec.get("dimensions") or {}
+    sizes = [f"{k}: {dims[k]}" for k in ("width", "depth", "height", "weight", "capacity") if dims.get(k)]
+    comps = [f'{c.get("count", 1)} x {c.get("name", "")}' + (f' - reads: {c["label"]}' if c.get("label") else "")
+             for c in (spec.get("components") or [])[:12] if c.get("name")]
+    acc = [f'{a.get("count", 1)} x {a.get("name", "")}' for a in (spec.get("accessories") or [])[:8] if a.get("name")]
+    mats = [str(m) for m in (spec.get("materials") or [])[:5]]
+    made = [spec["summary"]] if spec.get("summary") else []
+    if variant == "details":
+        return [("WHAT THE CONTROLS READ", [c for c in comps if " - reads: " in c]), ("ACCESSORIES", acc), ("MATERIALS", mats)]
+    if variant == "in use":
+        return []
+    return [("MADE OF", made), ("SIZE", sizes), ("MATERIALS", mats), ("PARTS", [c for c in comps if " - reads: " not in c])]
+
+
+def white_bands(info, mf, sheet_size=None):
+    """The white left in each cell around its picture (above, below, left, right): one band per cell, the largest, when
+    it can hold at least two lines of text a few words wide."""
+    out = []
+    for r in info:
+        if "img" not in r or str(r.get("caption", "")).startswith("TEXTURE"):
+            continue
+        cx, cy, cw, ch = r["box"]
+        ix, iy, iw, ih = r["img"]
+        top_cap = r.get("cap_top", cy + ch)
+        p = int(mf * 0.5)
+        cands = [(cx + p, cy + p, cw - 2 * p, iy - cy - 2 * p), (cx + p, iy + ih + p, cw - 2 * p, top_cap - iy - ih - 2 * p),
+                 (cx + p, cy + p, ix - cx - 2 * p, top_cap - cy - 2 * p), (ix + iw + p, cy + p, cx + cw - ix - iw - 2 * p, top_cap - cy - 2 * p)]
+        cands = [b for b in cands if b[2] >= mf * 9 and b[3] >= mf * 2.8]
+        if cands:
+            out.append((max(cands, key=lambda b: b[2] * b[3]), r))
+    return sorted(out, key=lambda br: -(br[0][2] * br[0][3]))
+
+
+def draw_dimensions(sheet, row, dims, mf):
+    """Dimension lines on the product's own panel, in the white beside the picture. Returns True when drawn."""
+    w_txt, h_txt = (dims or {}).get("width"), (dims or {}).get("height")
+    if not (w_txt or h_txt) or "img" not in row:
+        return False
+    d = ImageDraw.Draw(sheet)
+    f, ink = font(mf), (60, 60, 60)
+    cx, cy, cw, ch = row["box"]
+    ix, iy, iw, ih = row["img"]
+    below, right = row["cap_top"] - (iy + ih), (cx + cw) - (ix + iw)
+    drawn, lw, t = False, max(4, mf // 9), int(mf * 0.45)
+    if w_txt and below >= mf * 2.6:
+        y = iy + ih + int(mf * 0.7)
+        d.line([(ix, y), (ix + iw, y)], fill=ink, width=lw)
+        for x in (ix, ix + iw):
+            d.line([(x, y - t), (x, y + t)], fill=ink, width=lw)
+        d.text((ix + (iw - d.textlength(str(w_txt), font=f)) / 2, y + t), str(w_txt), fill=ink, font=f)
+        drawn = True
+    if h_txt and right >= mf * 2.6:
+        x = ix + iw + int(mf * 0.7)
+        d.line([(x, iy), (x, iy + ih)], fill=ink, width=lw)
+        for y in (iy, iy + ih):
+            d.line([(x - t, y), (x + t, y)], fill=ink, width=lw)
+        label = Image.new("RGB", (int(d.textlength(str(h_txt), font=f)) + 20, int(mf * 1.4)), (255, 255, 255))
+        ImageDraw.Draw(label).text((10, 2), str(h_txt), fill=ink, font=f)
+        label = label.rotate(90, expand=True)
+        sheet.paste(label, (x + t, iy + (ih - label.height) // 2))
+        drawn = True
+    return drawn
+
+
+def place_text(sheet, info, spec, variant, mf):
+    """Text goes only where the collage left white: into the bands around the pictures, never into a panel of its own
+    (owner, 2026-11-11: "the aim is pictures; text fills the white above or below"). Every line is mf high, so it is
+    readable at model size; what does not fit is left out. Returns how many lines were placed and left out."""
+    if not spec:
+        return {"placed": 0, "left_out": 0}
+    dims = spec.get("dimensions") or {}
+    used = set()
+    hero = next((r for r in info if r.get("kind") == "whole" and "img" in r), None)
+    if variant in ("all in one", "product") and hero and draw_dimensions(sheet, hero, dims, mf):
+        used.add(id(hero))
+    head, body = font(int(mf * 1.1)), font(mf, bold=False)
+    d = ImageDraw.Draw(sheet)
+    queue = []
+    for title, items in text_lines(spec, variant):
+        if items:
+            queue.append((title, True))
+            queue += [(it, False) for it in items]
+    placed = 0
+    lh = int(mf * 1.3)
+    for (bx, by, bw, bh), r in white_bands(info, mf):
+        if not queue:
+            break
+        if id(r) in used:
+            continue
+        y = by
+        while queue and y + lh <= by + bh:
+            text, bold = queue[0]
+            f = head if bold else body
+            lines = _wrap(d, text, f, bw - (0 if bold else int(mf * 0.9)))
+            if bold and len(queue) > 1 and not queue[1][1]:   # a heading goes only where its first line goes too
+                nxt = _wrap(d, queue[1][0], body, bw - int(mf * 0.9))
+                if y + lh * (len(lines) + len(nxt)) > by + bh:      # the heading and its whole first item, or neither
+                    break
+            if y + lh * len(lines) > by + bh:
+                if bold or y > by:
+                    break                                 # a heading never ends a band; a long item waits for a bigger band
+                lines = lines[:max(1, int((by + bh - y) // lh))]
+            for k, ln in enumerate(lines):
+                if not bold and k == 0:
+                    rr = mf * 0.16
+                    d.ellipse((bx, y + mf * 0.5 - rr, bx + 2 * rr, y + mf * 0.5 + rr), fill=(60, 60, 60))
+                d.text((bx + (0 if bold else int(mf * 0.9)), y), ln, fill=(30, 30, 30) if bold else (70, 70, 70), font=f)
+                y += lh
+            queue.pop(0)
+            placed += 1
+    return {"placed": placed, "left_out": len(queue)}
+
+
+def cover(im, w, h, limit=1.0):
+    """im cut to the shape of a w x h cell (its centre kept), removing at most `limit` of its width or height; beyond
+    that the rest is left as it is and the picture is drawn inside the cell."""
+    if w <= 0 or h <= 0:
+        return im
+    target = w / h
+    ar = im.width / im.height
+    if ar > target:
+        nw = max(int(im.width * (1 - limit)), int(im.height * target))
+        x0 = (im.width - nw) // 2
+        return im.crop((x0, 0, x0 + nw, im.height))
+    nh = max(int(im.height * (1 - limit)), int(im.width / target))
+    y0 = (im.height - nh) // 2
+    return im.crop((0, y0, im.width, y0 + nh))
+
+
+def sheet_fill(sheet):
+    """How much of a sheet is picture: the share of pixels that are neither the white of the cells nor the grey between
+    them. The sheets the owner approved by hand score 0.55-0.58; a sheet under 0.40 is mostly white."""
+    import numpy as np
+    small = sheet.convert("RGB").copy()
+    small.thumbnail((1000, 1000))
+    a = np.asarray(small, dtype=np.int16)
+    white = np.abs(a - 255).max(2) < 14
+    grey = np.abs(a - 232).max(2) < 6
+    return round(1.0 - float((white | grey).mean()), 2)
+
+
 def compose(panels, title, subtitle, size=5000, margin=60, gap=30, cap_h=110, max_up=1.5, hero_weight=None, height=None):
     """panels: [{"im": PIL, "role": hero|view|detail, "caption": str}] -> (sheet, info rows). size is the width;
-    height defaults to it (square), or is given for a 16:9 sheet."""
+    height defaults to it (square), or is given for a 16:9 sheet. A panel with a "render" function is drawn last, for
+    its exact cell. Every text is sized to stay readable once the sheet is scaled to what an image model sees."""
     bg, cell, ink, sub, line = (232, 232, 232), (255, 255, 255), (20, 20, 20), (90, 90, 90), (200, 200, 200)
     height = height or size
     sheet = Image.new("RGB", (size, height), bg)
     d = ImageDraw.Draw(sheet)
+    mf = min_font_for(size, height)
+    cap_f = max(60, mf)
+    cap_h = max(cap_h, int(cap_f * 2.35) + 24)
 
-    def fit(text, max_w, s):
-        while s > 24 and d.textlength(text, font=font(s)) > max_w:
-            s -= 2
-        return font(s)
+    def lines_for(text, max_w, start, floor, max_lines):
+        """The largest size >= floor at which text fits in max_lines; at floor, words that still do not fit are cut."""
+        for s_ in range(start, floor - 1, -2):
+            ls = _wrap(d, text, font(s_), max_w)
+            if len(ls) <= max_lines:
+                return font(s_), ls
+        ls = _wrap(d, text, font(floor), max_w)[:max_lines]
+        return font(floor), ls
 
     y = margin
     if title:
-        d.rectangle((margin, y, size - margin, y + 210), fill=cell)
-        d.text((margin + 50, y + 28), title, fill=ink, font=fit(title, size - 2 * margin - 100, 84))
-        d.text((margin + 50, y + 128), subtitle or "", fill=sub, font=fit(subtitle or "", size - 2 * margin - 100, 58))
-        y += 210 + gap
+        tf, tl = lines_for(title, size - 2 * margin - 100, max(84, int(mf * 1.35)), int(mf * 1.15), 1)
+        sf, sl = lines_for(subtitle or "", size - 2 * margin - 100, max(58, mf), mf, 2)
+        head_h = 28 + tf.size + 18 + len(sl) * int(sf.size * 1.2) + 26
+        d.rectangle((margin, y, size - margin, y + head_h), fill=cell)
+        d.text((margin + 50, y + 28), tl[0] if tl else "", fill=ink, font=tf)
+        for i, ln in enumerate(sl):
+            d.text((margin + 50, y + 28 + tf.size + 18 + i * int(sf.size * 1.2)), ln, fill=sub, font=sf)
+        y += head_h + gap
     rows, slack = layout(panels, size - 2 * margin, height - margin - y, gap, cap_h, max_up, hero_weight=hero_weight)
     info = []
     for cells, rh in rows:
         x, rh = margin, rh + slack
         for p, cw in cells:
             d.rectangle((x, y, x + cw, y + rh), fill=cell, outline=line, width=3)
-            im = p["im"]
-            scale = min((cw - 50) / im.width, (rh - cap_h - 50) / im.height, p.get("max_up", max_up))
+            if p.get("no_caption"):
+                sheet.paste(p["render"](int(cw), int(rh), mf), (int(x), int(y)))
+                for q in p.get("stack", []):
+                    info.append({"caption": q["caption"], "role": q["role"], "kind": q.get("kind"), "solo": False, "source": q.get("source"),
+                                 "generated": bool(q.get("generated")), "scale": 1.0, "box": [int(x), int(y), int(cw), int(rh)], "caption_px": mf})
+                x += cw + gap
+                continue
+            im = p["render"](int(cw - 50), int(rh - cap_h - 50), mf) if p.get("render") else p["im"]
+            if p.get("flex") and not p.get("render"):
+                im = cover(im, int(cw - 50), int(rh - cap_h - 50), p.get("flex_crop", 0.3))
+            fill_up = 40 if p.get("caption", "").startswith("TEXTURE") else p.get("max_up", max_up)
+            scale = 1.0 if p.get("render") else min((cw - 50) / im.width, (rh - cap_h - 50) / im.height, fill_up)
             im2 = im.resize((max(1, int(im.width * scale)), max(1, int(im.height * scale))), Image.LANCZOS)
             sheet.paste(im2, (int(x + (cw - im2.width) / 2), int(y + 25 + (rh - cap_h - 50 - im2.height) / 2)))
-            f = fit(p["caption"], cw - 50, 60)
-            d.text((x + (cw - d.textlength(p["caption"], font=f)) // 2, y + rh - cap_h + 14), p["caption"], fill=ink, font=f)
-            info.append({"caption": p["caption"], "role": p["role"], "kind": p.get("kind"), "solo": bool(p.get("solo")),
+            f, cl = lines_for(p["caption"], cw - 50, cap_f, mf, 2)
+            for i, ln in enumerate(cl):
+                d.text((x + (cw - d.textlength(ln, font=f)) // 2, y + rh - cap_h + 12 + i * int(f.size * 1.1)), ln, fill=ink, font=f)
+            ix, iy = int(x + (cw - im2.width) / 2), int(y + 25 + (rh - cap_h - 50 - im2.height) / 2)
+            info.append({"img": [ix, iy, im2.width, im2.height], "cap_top": int(y + rh - cap_h),
+                         "caption": p["caption"], "role": p["role"], "kind": p.get("kind"), "solo": bool(p.get("solo")),
                          "source": p.get("source"), "generated": bool(p.get("generated")),
-                         "scale": round(scale, 2), "box": [int(x), int(y), int(cw), int(rh)]})
+                         "scale": round(scale, 2), "box": [int(x), int(y), int(cw), int(rh)], "caption_px": f.size})
             x += cw + gap
         y += rh + gap
+    if info:
+        info[0]["min_text_font"] = mf
     return sheet, info
