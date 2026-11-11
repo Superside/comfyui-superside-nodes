@@ -1471,6 +1471,110 @@ def same_shape(a, b):
     return union > 0 and sum(1 for x, y in zip(sa, sb) if x and y) / union > 0.9
 
 
+TEXTURE_CHECK = """This picture should be a close-up swatch of the bare surface of {material} on {name}: only that
+material, filling the picture. Answer one JSON object {{"ok": true or false, "why": "a few words"}}. ok is false when
+the picture shows a knob, button, dial, display, text, logo, an edge or corner of the product, a seam, the background,
+or a material clearly different from {material} (another colour or finish)."""
+
+
+def colour_fits(patch, material):
+    """A cheap first test before asking a model: black material is dark, steel is grey without colour cast."""
+    import numpy as np
+    a = np.asarray(patch.convert("RGB").resize((64, 64)), dtype=np.float32)
+    lum, sat = float(a.mean()), float((a.max(2) - a.min(2)).mean())
+    m = material.lower()
+    if "black" in m and lum > 110:
+        return False
+    if "white" in m and lum < 150:
+        return False
+    metal = any(w in m for w in ("stainless", "steel", "silver", "chrome", "aluminium", "aluminum", "metal"))
+    if metal and "black" not in m and (sat > 40 or lum < 60):
+        return False
+    return True
+
+
+TEX_MIN_PX = 200       # a texture close-up is real pixels: a patch smaller than this in the photo is blown up and reads as a smear
+TEX_MIN_SHARP = 4.0    # fine-detail energy (grain, brushing) below this is a blurred or upscaled surface
+
+
+def texture_quality(patch):
+    """Is this crop good enough to count as a texture close-up? Its own size in the photo, and how much fine detail it
+    holds (the spread of a high-pass of the luminance). Returns (ok, side_px, sharpness)."""
+    import numpy as np
+    from PIL import ImageFilter
+    g = patch.convert("L")
+    side = min(patch.size)
+    a = np.asarray(g, dtype=np.float32)
+    hp = a - np.asarray(g.filter(ImageFilter.GaussianBlur(2)), dtype=np.float32)
+    sharp = float(hp.std())
+    return side >= TEX_MIN_PX and sharp >= TEX_MIN_SHARP, side, round(sharp, 1)
+
+
+def texture_tile(patches, gap=14):
+    """Several crops of one material side by side in one picture, each at its own size (never enlarged here)."""
+    h = min(min(p.size) for p in patches)
+    h = min(h, 700)
+    tiles = [p.resize((h, h), Image.LANCZOS) if p.size != (h, h) else p for p in patches]
+    out = Image.new("RGB", (len(tiles) * h + (len(tiles) - 1) * gap, h), (255, 255, 255))
+    for n, t in enumerate(tiles):
+        out.paste(t, (n * (h + gap), 0))
+    return out
+
+
+def texture_ok(call, model, patch, material, name):
+    got = parse_json(llm(call, model, TEXTURE_CHECK.format(material=material.lower(), name=name),
+                         [data_url(patch, 768, 90)], max_tokens=200)) or {}
+    return bool(got.get("ok")), str(got.get("why", ""))[:120]
+
+
+def texture_squares(im, hint=None, share=0.16, k=3, strict=True):
+    """Up to k squares of bare material, best first, that do not overlap. With strict, only inside the hint box (where
+    a vision model says the material is): a square found elsewhere in the photo was a knob or the control panel."""
+    from PIL import ImageFilter
+    import numpy as np
+    im = im.convert("RGB")
+    small = im.copy()
+    small.thumbnail((640, 640))
+    sx, sy = small.width / im.width, small.height / im.height
+    diff = ImageChops.difference(small, Image.new("RGB", small.size, small.getpixel((2, 2)))).convert("L").point(lambda v: 255 if v > 24 else 0)
+    box = diff.getbbox()
+    if not box:
+        return []
+    lum = np.asarray(small.convert("L"), dtype=np.float32)
+    strong = np.asarray(small.convert("L").filter(ImageFilter.FIND_EDGES), dtype=np.float32) > 60
+    m = np.asarray(diff, dtype=np.float32) / 255.0
+
+    def candidates(side, x0, y0, x1, y1):
+        blur = np.asarray(small.convert("L").filter(ImageFilter.GaussianBlur(side / 6)), dtype=np.float32)
+        out, step = [], max(4, side // 4)
+        for y in range(max(box[1], y0), min(box[3], y1) - side + 1, step):
+            for x in range(max(box[0], x0), min(box[2], x1) - side + 1, step):
+                if m[y:y + side, x:x + side].mean() < 0.995:
+                    continue
+                out.append((float(blur[y:y + side, x:x + side].std()) + 400.0 * float(strong[y:y + side, x:x + side].mean())
+                            + (0 if lum[y:y + side, x:x + side].mean() > 25 else 50), x, y))
+        return sorted(out)
+
+    areas = []
+    if hint:
+        areas.append((int(hint[0] * small.width), int(hint[1] * small.height), int(hint[2] * small.width), int(hint[3] * small.height)))
+    if not strict or not hint:
+        areas.append((0, 0, small.width, small.height))
+    for area in areas:
+        for kk in (1.0, 0.6, 0.4):
+            side = max(16, int(share * kk * min(box[2] - box[0], box[3] - box[1])))
+            found = candidates(side, *area)
+            picked = []
+            for _s, x, y in found:
+                if all(abs(x - px) >= side or abs(y - py) >= side for px, py in picked):
+                    picked.append((x, y))
+                if len(picked) >= k:
+                    break
+            if picked:
+                return [[x / sx / im.width, y / sy / im.height, (x + side) / sx / im.width, (y + side) / sy / im.height] for x, y in picked]
+    return []
+
+
 def texture_square(im, hint=None, share=0.16):
     """A square of bare material for a texture close-up, as fractions of the photo: the smoothest square that lies
     wholly on the product (no background, no edge, no print), near the hint box when one is given. Measured, not asked:
@@ -1814,7 +1918,7 @@ def stack_panel(panels):
             im = p["render"](w - 40, int(hi + spare - 20), mf) if p.get("render") else p["im"]
             if p.get("flex") and not p.get("render"):
                 im = cover(im, w - 40, int(hi + spare - 20), p.get("flex_crop", 0.3))
-            sc = min((w - 40) / im.width, (hi + spare - 20) / im.height, 40 if p["caption"].startswith("TEXTURE") else p.get("max_up", 2.6))
+            sc = min((w - 40) / im.width, (hi + spare - 20) / im.height, p.get("max_up", 2.6))
             im2 = im.resize((max(1, int(im.width * sc)), max(1, int(im.height * sc))), Image.LANCZOS)
             out.paste(im2, (int((w - im2.width) / 2), int(y + 10 + (hi + spare - 20 - im2.height) / 2)))
             f = font(max(60, mf))
@@ -2067,8 +2171,7 @@ def compose(panels, title, subtitle, size=5000, margin=60, gap=30, cap_h=110, ma
             im = p["render"](int(cw - 50), int(rh - cap_h - 50), mf) if p.get("render") else p["im"]
             if p.get("flex") and not p.get("render"):
                 im = cover(im, int(cw - 50), int(rh - cap_h - 50), p.get("flex_crop", 0.3))
-            fill_up = 40 if p.get("caption", "").startswith("TEXTURE") else p.get("max_up", max_up)
-            scale = 1.0 if p.get("render") else min((cw - 50) / im.width, (rh - cap_h - 50) / im.height, fill_up)
+            scale = 1.0 if p.get("render") else min((cw - 50) / im.width, (rh - cap_h - 50) / im.height, p.get("max_up", max_up))
             im2 = im.resize((max(1, int(im.width * scale)), max(1, int(im.height * scale))), Image.LANCZOS)
             sheet.paste(im2, (int(x + (cw - im2.width) / 2), int(y + 25 + (rh - cap_h - 50 - im2.height) / 2)))
             f, cl = lines_for(p["caption"], cw - 50, cap_f, mf, 2)

@@ -116,7 +116,7 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
             if not slots:
                 raise ValueError("The planner returned no panels twice for this product. Run the node again; if it repeats, "
                                  "check that the folder has photos of the product alone.")
-            json.dump({"slots": slots, "notes": notes}, open(plan_path, "w", encoding="utf-8"), indent=1)   # paid for: keep it
+            json.dump({"slots": [x for x in slots if not x.get("transient")], "notes": notes}, open(plan_path, "w", encoding="utf-8"), indent=1)   # paid for: keep it
 
         built = []
         for i, sl in enumerate(slots):
@@ -154,10 +154,12 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
             """A close-up that was refused or could not be filled is not generated: it is found in the largest real
             photo of the whole product, cut out and checked. Returns the panel, or None."""
             name = f'{product.get("brand", "")} {product.get("model", "")}'
-            photos = core.real_whole_photos(folder, tags, [k for k in tags if not k.startswith("generated/")])[:2]
+            photos = core.real_whole_photos(folder, tags, [k for k in tags if not k.startswith("generated/")])[:4]
             what = sl["caption"].lower() + (": every button, switch, dial, display and indicator, with labels" if sl["kind"] == "controls" else "")
             logo = sl["caption"].startswith("LOGO")            # a logo is small: a smaller cut is accepted, with some of the body around it
             texture = sl["caption"].startswith("TEXTURE")
+            if logo:
+                sl["caption"] = ("LOGO - " + str(product.get("brand", "")).upper()).strip(" -")
             used = {b["source"] for b in built}
             own = core.best_of(folder, tags, "logo close-up" if logo else "controls close-up", used) \
                 if (logo or sl["kind"] == "controls") and not force_cut else None
@@ -173,43 +175,94 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
             if logo:
                 what = "the brand logo or name printed on the product itself (and the model name if it is next to it)"
             if texture:
-                where = f' on the {sl["where"].lower()}' if sl.get("where") else ""
-                what = (f'a small patch of the bare surface of {sl["caption"].split("-", 1)[-1].strip().lower()}{where}: '
-                        "only the material itself, with no button, text, logo, edge, seam or shadow in it")
-            key, boxes = core.locate_in_photo(call, folder, photos, name, what, llm_model.strip() or check_model.strip(),
-                                              min_px=100 if (logo or texture) else 130, grow=0.0 if texture else 0.45 if logo else 0.15,
-                                              n=1 if (logo or texture) else 2,
-                                              max_share=0.2 if (logo or texture or sl["kind"] != "controls") else 0.4,
-                                              max_cells=2 if texture else 6 if (logo or sl["kind"] != "controls") else 14)
-            if not key:
-                notes.append(f'{sl["caption"]}: not found, tight enough for a close-up, in any real photo of the whole product')
-                if not sl.get("image") and not sl.get("generate"):
-                    sl["missing"] = True
+                return find_texture(i, sl, photos, name)
+            # Photo by photo: a cut the check refuses in one photo (the logo tiny in a photo of the whole set) may be right
+            # in the next. A logo or detail is looked for first in photos of single pieces and other close-ups.
+            pool = list(photos)
+            if logo or sl["kind"] == "detail":
+                near = [k for k, t2 in tags.items() if t2.get("view") in ("logo close-up", "detail close-up", "part alone")
+                        and t2.get("same_product") is not False and not k.startswith("generated/") and k not in used]
+                near.sort(key=lambda k: -min(Image.open(os.path.join(folder, k)).size))
+                pool = near[:3] + pool
+            why = ""
+            for photo in pool[:5]:
+                key, boxes = core.locate_in_photo(call, folder, [photo], name, what, llm_model.strip() or check_model.strip(),
+                                                  min_px=100 if logo else 130, grow=0.45 if logo else 0.15,
+                                                  n=1 if logo else 2,
+                                                  max_share=0.2 if (logo or sl["kind"] != "controls") else 0.4,
+                                                  max_cells=6 if (logo or sl["kind"] != "controls") else 14)
+                if not key:
+                    continue
+                trial = dict(sl, image=key, crop=boxes[0], crop_fitted=True)
+                trial.pop("crops", None)
+                if len(boxes) > 1:
+                    trial["crops"] = boxes
+                cand = {"im": core.prepare_panel(call, folder, trial, tags, isolate_busy_photos), "role": sl["role"], "kind": sl["kind"],
+                        "slot": i, "source": key, "generated": False, "caption": sl["caption"], "max_up": 2.6}
+                ok = [cand]
+                if check_model.strip():
+                    ok, _bad = core.verify_panels(call, name, [cand], check_model.strip(), keep_min=0)
+                if not ok:
+                    why = cand.get("why", "")[:120]
+                    continue
+                for k2 in ("dropped", "missing", "why", "generate", "file"):
+                    sl.pop(k2, None)
+                sl.pop("crops", None)
+                sl.update(image=key, crop=trial["crop"], crop_fitted=True, generated=False, **({"crops": trial["crops"]} if trial.get("crops") else {}))
+                notes.append(f'{sl["caption"]}: cut from the real photo {os.path.basename(key)}')
+                return cand
+            notes.append(f'{sl["caption"]}: no cut from {len(pool[:5])} real photos passed the check' + (f" (last: {why})" if why else ""))
+            if not sl.get("image") and not sl.get("generate"):
+                sl["missing"] = True
+            return None
+
+        def find_texture(i, sl, photos, name):
+            """A square of one bare material. Where the material is comes from a vision model (grid cells), the square is
+            measured inside that area only, its colour must fit the material, and a check model must see only that
+            material in it (owner, 2026-11-11: textures from several parts of the product, one per material)."""
+            material = sl["caption"].split("-", 1)[-1].strip()
+            where = f' on the {sl["where"].lower()}' if sl.get("where") else ""
+            what = (f"the largest flat, plain area of bare {material.lower()}{where}: only the material, with no button, knob, "
+                    "text, logo, edge, seam or shadow in it")
+            near = [k for k, t2 in tags.items() if t2.get("view") in ("detail close-up", "interior", "part alone")
+                    and t2.get("same_product") is not False and not k.startswith("generated/")]
+            near.sort(key=lambda k: -min(Image.open(os.path.join(folder, k)).size))
+            why, good = "", []
+            for photo in (list(photos[:3]) + near[:3])[:5]:
+                if len(good) >= 3:
+                    break
+                key, boxes = core.locate_in_photo(call, folder, [photo], name, what, llm_model.strip() or check_model.strip(),
+                                                  min_px=60, grow=0.0, n=1, max_share=0.45, max_cells=6)
+                if not key:
+                    continue
+                im = Image.open(os.path.join(folder, key)).convert("RGB")
+                for sq in core.texture_squares(im, boxes[0], share=0.34, k=4, strict=True):   # the largest square first
+                    if len(good) >= 3:
+                        break
+                    patch = im.crop((int(sq[0] * im.width), int(sq[1] * im.height), int(sq[2] * im.width), int(sq[3] * im.height)))
+                    q_ok, side_px, sharp = core.texture_quality(patch)
+                    if not q_ok:                                  # too few real pixels, or a blurred surface: not a close-up
+                        why = f"{side_px} px, sharpness {sharp}: too small or too soft for a texture close-up"
+                        continue
+                    if not core.colour_fits(patch, material):
+                        why = "colour does not fit the material"
+                        continue
+                    if check_model.strip():
+                        ok, why = core.texture_ok(call, check_model.strip(), patch, material, name)
+                        if not ok:
+                            continue
+                    good.append((key, sq, patch))
+            if not good:
+                notes.append(f'{sl["caption"]}: no patch of only this material, sharp and large enough, was found' + (f" (last: {why})" if why else ""))
+                sl["missing"] = True
                 return None
-            if texture:                                       # the bare material: measured inside the photo, near the hint
-                sq = core.texture_square(Image.open(os.path.join(folder, key)), boxes[0])
-                if sq:
-                    boxes = [sq]
-            trial = dict(sl, image=key, crop=boxes[0], crop_fitted=True)
-            trial.pop("crops", None)
-            if len(boxes) > 1:
-                trial["crops"] = boxes
-            cand = {"im": core.prepare_panel(call, folder, trial, tags, isolate_busy_photos), "role": sl["role"], "kind": sl["kind"],
-                    "slot": i, "source": key, "generated": False, "caption": sl["caption"], "max_up": 2.6}
-            ok = [cand]
-            if check_model.strip():
-                ok, _bad = core.verify_panels(call, name, [cand], check_model.strip(), keep_min=0)
-            if not ok:
-                notes.append(f'{sl["caption"]}: the cut from a real photo was also refused ({cand.get("why", "")[:120]})')
-                if not sl.get("image") and not sl.get("generate"):
-                    sl["missing"] = True
-                return None
-            for k2 in ("dropped", "missing", "why", "generate", "file"):
+            # several crops of the same material side by side (owner, 2026-11-11), at their own resolution
+            for k2 in ("dropped", "missing", "why", "generate", "file", "crops"):
                 sl.pop(k2, None)
-            sl.pop("crops", None)
-            sl.update(image=key, crop=trial["crop"], crop_fitted=True, generated=False, **({"crops": trial["crops"]} if trial.get("crops") else {}))
-            notes.append(f'{sl["caption"]}: cut from the real photo {os.path.basename(key)}')
-            return cand
+            sl.update(image=good[0][0], crop=good[0][1], crop_fitted=True, generated=False, transient=True)
+            notes.append(f'{sl["caption"]}: {len(good)} crops measured in real photos and checked')
+            return {"im": core.texture_tile([g[2] for g in good]), "role": sl["role"], "kind": sl["kind"], "slot": i,
+                    "source": good[0][0], "generated": False, "caption": sl["caption"], "max_up": 3.0}
 
         # G5: a second model looks at every finished panel; one that does not show what its caption says is removed
         if check_model.strip():
@@ -410,9 +463,9 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                 cand = cut_closeup(len(slots) - 1, tex, force_cut=True)
                 if cand:
                     built.append(cand)
-        for b in built:                                  # a texture swatch has no shape of its own: it fills its cell
+        for b in built:                                  # texture crops are shown at their own resolution, at most 2x
             if b["caption"].startswith("TEXTURE"):
-                b["flex"], b["flex_crop"], b["max_up"] = True, 1.0, 6.0
+                b["flex"], b["max_up"] = False, 3.0
         if variant == "product":
             built = [b for b in built if b["kind"] in ("whole", "state")]
         elif variant == "details":
@@ -447,7 +500,10 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                         json.dump(ideas, open(ideas_path, "w", encoding="utf-8"), indent=1)
                     except Exception as e:
                         notes.append(f"in use: could not list more uses ({str(e)[:80]})")
-                name = f'{product.get("brand", "")} {product.get("model", "")}'
+                mats = "; ".join(str(m) for m in ((spec or {}).get("materials") or [])[:5])
+                finish = (" The product is exactly the one in the reference photos, same materials, colours and finish inside and"
+                          " out" + (f" ({mats})" if mats else "") + ": nothing is recoloured or given a coating it does not have.")
+                name = f'{product.get("brand", "")} {product.get("model", "")}' + (f" - made of {mats}" if mats else "")
                 os.makedirs(os.path.join(folder, "generated"), exist_ok=True)
                 for u in ideas:
                     if len(built) >= core.MIN_USES:
@@ -457,7 +513,7 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                     path = os.path.join(folder, file)
                     try:
                         im = Image.open(path).convert("RGB") if os.path.exists(path) else core.generate_view(
-                            call, folder, u["what"], refs, True, kind="use")
+                            call, folder, u["what"] + finish, refs, True, kind="use")
                     except Exception as e:
                         notes.append(f"in use: {cap} failed to generate ({str(e)[:80]})")
                         continue
@@ -592,7 +648,7 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
         if report["fill"] < 0.40:
             report["fatal"].append(f'G2: only {int(report["fill"] * 100)} % of the sheet is picture (the hand-approved sheets are 55-58 %)')
         report["qa_first_round"] = rounds[0]["issues"] if len(rounds) > 1 else []
-        json.dump({"slots": slots, "notes": notes}, open(plan_path, "w", encoding="utf-8"), indent=1)
+        json.dump({"slots": [x for x in slots if not x.get("transient")], "notes": notes}, open(plan_path, "w", encoding="utf-8"), indent=1)
         out = {"mode": mode, "variant": variant, "size": [size, sheet_h], "profile": profile, "gates": report, "notes": notes,
                "panels": rows, "saved": os.path.join(folder, f"sheet_{mode}{suffix}.png")}
         json.dump(out, open(os.path.join(folder, f"sheet_{mode}{suffix}_info.json"), "w", encoding="utf-8"), indent=1)

@@ -754,11 +754,19 @@ list of slots with the best photo for each; code frames every picture, packs the
   Research found fewer than three, the text model lists distinct, realistic uses of this product (saved in
   `use_cases.json`, so a rerun does not ask again) and one image of each is generated from the product's own whole
   views and checked like any generated panel. A sheet that still shows fewer than three is flagged U1.
-- **One texture per material.** The details sheet shows a square patch of each main material (up to three), found in
-  a real photo where the surface is even and has few strong edges, so a texture is never a strip of edge or a window.
+- **One texture per material.** The details sheet shows a square patch of each main material (up to three). A vision
+  model names the grid cells where the material is; the patch is measured only inside them (even surface, few strong
+  edges); its colour must fit the material (black is dark, steel is grey); and a check model must see only that
+  material in it - no knob, text or edge. Up to three patches in each of four photos are tried before it gives up.
+- **Close-ups photo by photo.** A logo, control or detail cut is tried in up to five real photos - photos of single
+  pieces and other close-ups first, then the whole product - until one passes the check, so a logo that is tiny in a
+  photo of a whole cookware set is looked for on a single piece.
+- **Generated uses keep the real finish.** The image model is given the product's materials and told not to recolour
+  or coat it, and the check is told them too (a stainless pan once came back with a black non-stick inside).
 - **`format`: 1:1 or 16:9.** In 16:9 `size` is the width.
 - **`variant`: all in one, product, details or in use.** Connect the node three times to the same `product_dir` for
-  the full set (the workflow `product_SET_research_three_sheets_render` does this): **product** is the whole
+  the full set (the workflow `example_workflows/product_SET_research_three_sheets_render.json` does this; ComfyUI
+  lists it under this pack's templates): **product** is the whole
   product, its counted parts and its sizes; **details** is the control close-ups, the logo, a texture patch of the
   main material and the accessories; **in use** is the product being used, real photos kept with their scene. The
   three share one plan and one set of generated views, so they agree with each other and the second and third cost
