@@ -14,6 +14,7 @@ acceptable; a wrong one is not - so a sheet that fails a gate is not returned.
 import json
 import logging
 import os
+import re
 
 import numpy as np
 import torch
@@ -29,8 +30,8 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
     """Fill the slots, clean, generate what is missing, compose and gate the product sheet."""
 
     CATEGORY = "Superside"
-    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
-    RETURN_NAMES = ("sheet", "product_info", "info")
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("sheet", "product_info", "info", "scene_prompt")
     FUNCTION = "build"
     DISPLAY_NAME = "Product Sheet"
     DESCRIPTION = (
@@ -51,7 +52,7 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
             },
             "optional": {
                 "mode": (["mixed", "real", "generated"], {"default": "mixed"}),
-                "max_generated": ("INT", {"default": 5, "min": 0, "max": 12,
+                "max_generated": ("INT", {"default": 6, "min": 0, "max": 12,
                                           "tooltip": "Most NEW generated views (each is one GPT Image 2.5 Sunburst call at quality high)."}),
                 "isolate_busy_photos": ("BOOLEAN", {"default": True,
                                                     "tooltip": "Cut whole-product photos out of kitchens and studios (background removal, real pixels)."}),
@@ -89,7 +90,7 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
         plan_path = os.path.join(folder, f"sheet_plan_{mode}.json")
         saved = json.load(open(plan_path, encoding="utf-8")) if reuse_plan and os.path.exists(plan_path) else {}
         if "slots" in saved:
-            slots, notes = saved["slots"], saved.get("notes", [])
+            slots, notes = saved["slots"], []
             for sl in slots:
                 sl.pop("dropped", None)
         else:
@@ -118,15 +119,61 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                 if os.path.exists(path):
                     im = Image.open(path).convert("RGB")
                 else:
-                    im = core.generate_view(call, folder, sl["generate"]["what"], sl["generate"]["refs"], sl["generate"].get("wide", False))
+                    im = core.generate_view(call, folder, sl["generate"]["what"], sl["generate"]["refs"], sl["generate"].get("wide", False),
+                                            kind=sl["kind"])
                     im.save(path)
                 im = core.trim_plain(im)
             caption = sl["caption"] + (" (GENERATED)" if sl.get("generated") and mode == "mixed" else "")
             built.append({"im": im, "role": sl["role"], "kind": sl["kind"], "caption": caption, "slot": i,
                           "source": sl.get("image") or sl.get("file"), "generated": bool(sl.get("generated")),
-                          **({"max_up": float(sl["max_up"])} if sl.get("max_up") else ({"max_up": 2.2} if sl["kind"] in ("state", "controls") else {}))})
+                          **({"max_up": float(sl["max_up"])} if sl.get("max_up") else {"max_up": 2.6 if sl["kind"] in ("whole", "state", "controls", "use") else 2.0})})
         if not built:
             raise ValueError("No slot could be filled. Check that Product Research found usable photos of this product.")
+
+        def cut_closeup(i, sl, force_cut=False):
+            """A close-up that was refused or could not be filled is not generated: it is found in the largest real
+            photo of the whole product, cut out and checked. Returns the panel, or None."""
+            name = f'{product.get("brand", "")} {product.get("model", "")}'
+            photos = core.real_whole_photos(folder, tags, [k for k in tags if not k.startswith("generated/")])[:2]
+            what = sl["caption"].lower() + (": every button, switch, dial, display and indicator, with labels" if sl["kind"] == "controls" else "")
+            logo = sl["caption"].startswith("LOGO")            # a logo is small: a smaller cut is accepted, with some of the body around it
+            used = {b["source"] for b in built}
+            own = core.best_of(folder, tags, "logo close-up" if logo else "controls close-up", used) \
+                if (logo or sl["kind"] == "controls") and not force_cut else None
+            if own:                                             # the slot's own category first: a real close-up photograph
+                trial = dict(sl, image=own, crop=None)
+                cand = {"im": core.prepare_panel(call, folder, trial, tags, isolate_busy_photos), "role": sl["role"], "kind": sl["kind"],
+                        "slot": i, "source": own, "generated": False, "caption": sl["caption"], "max_up": 2.6}
+                for k2 in ("dropped", "missing", "why", "generate", "file", "crop"):
+                    sl.pop(k2, None)
+                sl.update(image=own, crop=None, generated=False)
+                notes.append(f'{sl["caption"]}: taken from the close-up photo {os.path.basename(own)}')
+                return cand
+            if logo:
+                what = "the brand logo or name printed on the product itself (and the model name if it is next to it)"
+            key, boxes = core.locate_in_photo(call, folder, photos, name, what, llm_model.strip() or check_model.strip(),
+                                              min_px=100 if logo else 130, grow=0.45 if logo else 0.3, n=1 if logo else 2)
+            if not key:
+                notes.append(f'{sl["caption"]}: not found, tight enough for a close-up, in any real photo of the whole product')
+                return None
+            trial = dict(sl, image=key, crop=boxes[0], crop_fitted=True)
+            trial.pop("crops", None)
+            if len(boxes) > 1:
+                trial["crops"] = boxes
+            cand = {"im": core.prepare_panel(call, folder, trial, tags, isolate_busy_photos), "role": sl["role"], "kind": sl["kind"],
+                    "slot": i, "source": key, "generated": False, "caption": sl["caption"], "max_up": 2.6}
+            ok = [cand]
+            if check_model.strip():
+                ok, _bad = core.verify_panels(call, name, [cand], check_model.strip(), keep_min=0)
+            if not ok:
+                notes.append(f'{sl["caption"]}: the cut from a real photo was also refused ({cand.get("why", "")[:120]})')
+                return None
+            for k2 in ("dropped", "missing", "why", "generate", "file"):
+                sl.pop(k2, None)
+            sl.pop("crops", None)
+            sl.update(image=key, crop=trial["crop"], crop_fitted=True, generated=False, **({"crops": trial["crops"]} if trial.get("crops") else {}))
+            notes.append(f'{sl["caption"]}: cut from the real photo {os.path.basename(key)}')
+            return cand
 
         # G5: a second model looks at every finished panel; one that does not show what its caption says is removed
         if check_model.strip():
@@ -135,10 +182,135 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
             for b in built:
                 if id(b) not in kept_ids:
                     slots[b["slot"]]["dropped"] = "G5: the picture does not match the caption"
+                    slots[b["slot"]]["why"] = b.get("why", "")
             notes += [f"removed by the panel check - {d}" for d in dropped]
             built = kept
 
+            # QA retry: a panel the check removed is not simply left out. It is made again once, from the product's own
+            # whole views, with the reason it was refused, and checked again. Same for a required panel nobody could fill.
+            name = f'{product.get("brand", "")} {product.get("model", "")}'
+            whole_refs = [b["source"] for b in built if b["kind"] == "whole" and not b["generated"]][:2]
+            retried = 0
+            for i, sl in enumerate(slots):
+                again = str(sl.get("dropped", "")).startswith("G5") or (sl.get("missing") and sl["kind"] in ("controls", "use", "detail"))
+                if not again or retried >= 4 or mode == "real" or not whole_refs:
+                    continue
+                if sl["kind"] in ("controls", "detail"):
+                    retried += 1
+                    cand = cut_closeup(i, sl)
+                    if cand:
+                        built.append(cand)
+                    continue
+                gen = sl.get("generate") or {}
+                refs = list(dict.fromkeys(list(gen.get("refs", [])) + whole_refs))[:3]
+                what = gen.get("what") or (f'{sl["caption"].lower()} - one hand holding the product in use' if sl["kind"] == "use"
+                                           else f'{sl["caption"].lower()}, alone and complete')
+                file = f"generated/{mode}_{i + 1:02d}_{core.slug(sl['caption'])[:30].lower()}_retry.png"
+                path = os.path.join(folder, file)
+                if os.path.exists(path):
+                    im = Image.open(path).convert("RGB")
+                else:
+                    try:
+                        im = core.generate_view(call, folder, what, refs, False, kind=sl["kind"], feedback=sl.get("why", ""))
+                    except Exception as e:
+                        notes.append(f'{sl["caption"]}: second attempt failed to generate ({str(e)[:80]})')
+                        continue
+                    im.save(path)
+                retried += 1
+                cand = {"im": core.trim_plain(im), "role": sl["role"], "kind": sl["kind"], "slot": i, "source": file, "generated": True,
+                        "caption": sl["caption"] + (" (GENERATED)" if mode == "mixed" else ""),
+                        "max_up": 2.6 if sl["kind"] in ("whole", "state", "controls", "use") else 2.0}
+                ok, _bad = core.verify_panels(call, name, [cand], check_model.strip(), keep_min=0)
+                if ok:
+                    for key in ("dropped", "missing", "image", "crop", "why"):
+                        sl.pop(key, None)
+                    sl.update(generated=True, file=file, generate={"what": what, "refs": refs, "wide": False})
+                    built.append(cand)
+                    notes.append(f'{sl["caption"]}: made again after the check refused the first picture')
+                else:
+                    notes.append(f'{sl["caption"]}: second attempt also refused ({cand.get("why", "")[:120]})')
+
         # G7: the first control close-up gets a row of its own, so its labels are large
+
+        # Two close-ups are part of every sheet whatever the planner did: the controls and the logo. If none was
+        # planned or none survived, they are looked for in the largest real photo of the whole product and cut from it.
+        if built:
+            for kind, caption, has in (("controls", "CONTROLS - BUTTONS & SWITCHES", any(b["kind"] == "controls" for b in built)),
+                                       ("detail", "LOGO & MODEL NAME", any(re.search(r"LOGO|BADGE|BRAND", b["caption"]) for b in built))):
+                if has:
+                    continue
+                sl = next((s for s in slots if (s["kind"] == "controls" if kind == "controls" else s["caption"].startswith("LOGO"))), None)
+                if sl is None:
+                    sl = {"kind": kind, "caption": caption, "role": core.KIND_ROLE[kind], "missing": True}
+                    slots.append(sl)
+                cand = cut_closeup(slots.index(sl), sl)
+                if cand:
+                    built.append(cand)
+                elif not sl.get("dropped"):
+                    sl["missing"] = True
+
+        # Every panel shows something no other panel shows (owner's rule, 2026-11-11).
+        # 1. The product alone is shown once per angle.
+        # 2. Accessories get a panel of their own, WITHOUT the product in it again: a photo of the product with its
+        #    accessories is dropped when the accessories already have a panel; otherwise the accessories are cut out of
+        #    it. If they cannot be cut apart, the photo stays and the product-alone view from the same angle goes.
+        # Not for a product that IS a set (no view of one piece alone exists): there the set is the product.
+        def angle(b):
+            t = tags.get(b["source"], {})
+            return t.get("angle") if t.get("angle") not in (None, "", "none") else (t.get("view") if t.get("view") in core.WHOLE_VIEWS else "")
+
+        def is_set(b):
+            return b["kind"] in ("whole", "part") and not b["generated"] and tags.get(b["source"], {}).get("view") == "set together" \
+                and not slots[b["slot"]].get("crop")
+
+        def drop(b, why):
+            slots[b["slot"]]["dropped"] = "REPEAT: " + why
+            notes.append(f'{b["caption"]}: dropped - {why}')
+            built.remove(b)
+
+        seen_angles = {}
+        for b in [x for x in built if x["kind"] == "whole" and not is_set(x)]:
+            if angle(b) and angle(b) in seen_angles:
+                drop(b, f'same angle ({angle(b)}) as "{seen_angles[angle(b)]}"')
+            elif angle(b):
+                seen_angles[angle(b)] = b["caption"]
+        for b in [x for x in built if is_set(x)]:
+            alone = [x for x in built if x["kind"] == "whole" and not is_set(x)]
+            if not alone:
+                break
+            if any(x["kind"] == "part" and x is not b and not is_set(x) for x in built):
+                drop(b, "the product is already shown alone and the accessories have their own panel")
+                continue
+            key, boxes = core.locate_in_photo(call, folder, [b["source"]], f'{product.get("brand", "")} {product.get("model", "")}',
+                                              "all the accessories and removable parts lying next to the main product - NOT the main product itself",
+                                              llm_model.strip() or check_model.strip(), min_px=300, grow=0.12, max_share=0.75, n=1, max_cells=30)
+            if key:
+                sl = {"kind": "part", "caption": "ACCESSORIES", "role": core.KIND_ROLE["part"], "image": key, "crop": boxes[0],
+                      "crop_fitted": True, "generated": False}
+                slots.append(sl)
+                built.append({"im": core.trim_plain(core.prepare_panel(call, folder, sl, tags, isolate_busy_photos)), "role": sl["role"],
+                              "kind": "part", "slot": len(slots) - 1, "source": key, "generated": False, "caption": "ACCESSORIES", "max_up": 2.0})
+                drop(b, "the product is already shown alone; its accessories were cut from this photo into their own panel")
+            else:
+                same = [x for x in alone if angle(x) and angle(x) == angle(b)]
+                if same and len(alone) > 1:
+                    drop(same[-1], f'the product is seen from the same angle in "{b["caption"]}", which also shows the accessories')
+
+        # No view twice: a panel that repeats one already on the sheet is dropped (the product whole is kept, the loose
+        # cut of it goes). A required close-up lost this way is cut again, tight, before the sheet is composed.
+        for _round in range(2):
+            built, gone = core.drop_repeats(built, slots)
+            for b, why in gone:
+                slots[b["slot"]]["dropped"] = "REPEAT: " + why
+                notes.append(f'{b["caption"]}: dropped - {why}')
+            again = [b for b, _why in gone if b["kind"] == "controls" or b["caption"].startswith("LOGO")]
+            if _round or not again:
+                break
+            for b in again:
+                if not any(k["kind"] == b["kind"] and k["caption"].startswith("LOGO") == b["caption"].startswith("LOGO") for k in built):
+                    cand = cut_closeup(b["slot"], slots[b["slot"]], force_cut=True)
+                    if cand:
+                        built.append(cand)
 
         title = f'{product.get("brand", "")} {product.get("model", "")} - {product.get("name", "")}'.strip(" -").upper()
         size_line = next((ln.split(":", 1)[1].strip() for ln in info.splitlines() if ln.upper().startswith("SIZE")), "")
@@ -149,6 +321,38 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
             report = core.gate_report(slots, built, rows, size)
             if not any(f.startswith("G1: whole-product panels") for f in report["fatal"]):
                 break
+        # final QA: one model looks at the finished sheet as a whole against the hierarchy. What it can fix by removing
+        # a bad secondary panel is fixed and the sheet is judged once more; what remains is reported and blocks a strict run.
+        qa, rounds = {"pass": True, "issues": [], "not_run": "no check model"}, []
+        if llm_model.strip():
+            name = f'{product.get("brand", "")} {product.get("model", "")} {product.get("name", "")}'
+            for qa_round in range(2):
+                qa = core.qa_sheet(call, name, sheet, [r["caption"] for r in rows], llm_model.strip())
+                rounds.append(qa)
+                removable = {"artefact", "marketing_text", "wrong_caption", "duplicate", "product_cut"}
+                first_whole = next((b for b in built if b["kind"] == "whole"), None)
+                # the final QA deletes generated pictures only. A real photograph or a cut from one is reported, never
+                # deleted: two checks that disagree from run to run must not decide what the sheet contains
+                bad = [b for b in built if b is not first_whole and b["generated"]
+                       and sum(1 for x in built if x["kind"] == b["kind"]) > 1 and any(
+                    str(i.get("panel", "")).upper()[:24] == b["caption"].upper()[:24] and i.get("code") in removable for i in qa["issues"])]
+                if qa_round or not bad or len(built) - len(bad) < 3:
+                    break
+                for b in bad:
+                    slots[b["slot"]]["dropped"] = "QA: removed by the final sheet check"
+                    notes.append(f'removed by the final QA - {b["caption"]}')
+                built = [b for b in built if b not in bad]
+                for b in bad:                               # a refused generated close-up is replaced by a cut from a real photo
+                    if b["kind"] in ("controls", "detail") and b["generated"]:
+                        cand = cut_closeup(b["slot"], slots[b["slot"]])
+                        if cand:
+                            built.append(cand)
+                sheet, rows = core.compose(built, title, subtitle[:230], size=size, hero_weight=hero_weight)
+                report = core.gate_report(slots, built, rows, size)
+            for i in qa["issues"]:
+                report["fatal"].append(f'QA {i.get("code")}: {i.get("panel", "SHEET")} - {str(i.get("why", ""))[:140]}')
+        report["qa"] = qa
+        report["qa_first_round"] = rounds[0]["issues"] if len(rounds) > 1 else []
         json.dump({"slots": slots, "notes": notes}, open(plan_path, "w", encoding="utf-8"), indent=1)
         out = {"mode": mode, "size": size, "gates": report, "notes": notes, "panels": rows,
                "saved": os.path.join(folder, f"sheet_{mode}.png")}
@@ -159,4 +363,5 @@ class SupersideProductSheetNode(SupersideFalNode, APIClientMixin):
                              + f". A copy for inspection is in sheet_{mode}_REJECTED.png. Notes: " + " | ".join(notes[:6]))
         sheet.save(os.path.join(folder, f"sheet_{mode}.png"))
         tensor = torch.from_numpy(np.array(sheet).astype(np.float32) / 255.0).unsqueeze(0)
-        return (tensor, info, json.dumps(out, indent=1))
+        scene = core.read_scene(call, folder, product, info, llm_model)        # written by Product Research; made here if missing
+        return (tensor, info, json.dumps(out, indent=1), scene)

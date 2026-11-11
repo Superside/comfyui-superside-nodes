@@ -650,8 +650,9 @@ Folder inputs have a button that opens the Windows file dialog on the machine ru
 pick any file inside the product folder) where an existing one is read. Type the path when ComfyUI is remote.
 
 #### Product Research (`SupersideProductResearchNode`)
-Step 1. Give it a photo of a product and, if you know them, the brand and model. It identifies the product, finds web
-pages that show it (an LLM with web search, plus any links you paste), downloads the photos named after the model, tags
+Step 1. Give it a photo of a product, or a link to it, and if you know them the brand and model. It identifies the
+product, finds web pages that show it (an LLM with web search, plus any links you paste), runs an image search
+(open-source `ddgs`, no key, no cost), downloads the photos, tags
 every photo (view, state, parts, clean or not, same colour or not) and writes a PRODUCT INFO text for prompts. Nothing is
 discarded: every photo stays in the folder with its tags; photos of another colour or model are kept and never used. The
 contact sheet output shows every photo found, the usable ones first.
@@ -659,11 +660,25 @@ contact sheet output shows every photo found, the usable ones first.
 - **Write the model in `product_hint` when you know it.** Makers sell near-identical models under different numbers; from a
   photo alone the first test named a sibling model with "high" confidence. The report lists look-alikes.
 - **Some shops refuse automated clients.** Such pages are skipped, never worked around; give other links in `source_urls`.
+  Nothing is fetched from a site that states it does not allow automated agents, pages or image servers
+  (`REFUSED_HOSTS` in `product_sheet_core.py`); the report counts what was left out.
+- **Categories.** Every photo is tagged into one category: product alone (front, 3/4, side, back, top), controls
+  close-up, logo close-up, other details, accessories, product with accessories, in hand, in use, packaging,
+  infographic. A required category that came back empty (controls, logo, in hand, accessories, product alone) is
+  searched for by name once. The `contact_sheet` output and `contact_sheet_by_category.jpg` show the photos grouped by
+  category, empty ones marked; `categories.json` lists them. The sheet fills each panel from its own category first,
+  cuts a close-up from a PRODUCT ALONE photo when the category is empty, and generates only as a last resort.
+  Measured on one hair dryer: no real close-up of its buttons or logo exists on the open web, so both were cut.
+- **Image search.** Needs the `ddgs` package (in `requirements.txt`; ComfyUI Manager installs it with the node). If it
+  is missing the node still runs on page search alone and the report says so. Measured on one product: 13 photos tagged
+  without it, 42 with it - many of them marketing pictures, which the tagger keeps as reference only.
 - **Inputs:** `api_key` - optional: `image`, `product_hint`, `source_urls` (links, one per line), `output_dir` (empty =
-  `output/product_sheets/<brand_model>`), `search_pages` (default 8), `max_images` (40), `min_image_side` (700),
-  `llm_model`, `tag_model`
-- **Outputs:** `product_dir` (STRING), `product_info` (STRING), `contact_sheet` (IMAGE), `report` (STRING)
-- **Saved in `product_dir`:** `images/`, `product.json`, `image_tags.json`, `product_info.txt`, `research_report.txt`
+  `output/product_sheets/<brand_model>`), `search_pages` (default 8), `min_images` (40), `max_images` (80),
+  `min_image_side` (700), `llm_model`, `tag_model`, `search_model`, `image_search` (on)
+- **Outputs:** `product_dir` (STRING), `product_info` (STRING), `contact_sheet` (IMAGE), `report` (STRING),
+  `scene_prompt` (STRING)
+- **Saved in `product_dir`:** `images/`, `not_product/`, `product.json`, `image_tags.json`, `product_info.txt`,
+  `scene_prompt.txt`, `research_report.txt`
 
 #### Product Sheet (`SupersideProductSheetNode`)
 Step 2. Builds one square reference sheet (5000 x 5000 by default) from a researched folder. A vision LLM fills a fixed
@@ -681,6 +696,33 @@ list of slots with the best photo for each; code frames every picture, packs the
   pass, on two model families; asked for a layout it left half the sheet empty. Whole views are framed by code (plain
   backgrounds are trimmed, busy ones cut out with background removal). The layout tries every way of cutting the ordered
   panels into rows and keeps the one that puts the most picture on the sheet, whole views in the tallest rows.
+- **Hierarchy (owner's rule, 2026-11-11, for every product).** 1) the product itself, alone, complete and large, on
+  plain white; 2) close-ups of its own details - controls and logo are required; 3) its accessories, together and
+  smaller than the product; 4) the product in a hand or with a person. Panels are ordered and sized in that order, the
+  product row takes at most half the sheet, and no row is taller than the one above it.
+- **No view twice (owner's rule, 2026-11-11).** The same front view was on one sheet four times: once whole and three
+  times as loose "close-ups" cut from it. Now a panel is dropped when it is cut from a photo already shown whole and
+  covers more than a quarter of it, when it shares most of its area with another cut of the same photo, or when it
+  simply looks the same as a panel already kept. Panels are judged in the order of the hierarchy, so the product
+  whole stays and the repeat goes.
+- **Every panel shows something new (owner's rule, 2026-11-11).** The product alone is shown once per angle (the
+  tagger records the angle the product is seen from in every photo). Accessories get a panel of their own without
+  the product in it: a photo of the product with its accessories is dropped when the accessories already have a
+  panel; otherwise the accessories are cut out of it; if they cannot be cut apart, that photo stays and the
+  product-alone view from the same angle goes. A product that is itself a set of pieces is left alone. The final QA
+  never deletes the last panel of its kind.
+- **Close-ups are tight.** To find the controls or the logo in a photo the model is shown the product under a numbered
+  grid and names the cells; asked for coordinates it was 5-10 % off and missed a small button altogether. Each group
+  of cells becomes one cut; a cut larger than a fifth of the photo is refused.
+- **Always on white.** Any panel whose border is not near white (a flat colour, a gradient, a room) has its background
+  removed, the in-use photo included (the hand stays). Cut-outs are kept in `clean/` so they are paid for once.
+- **Close-ups are cut, not generated.** Asked for a close-up from whole-product references the image model returned
+  the whole product again, or a collage. Controls and logo are located in the largest real photo of the whole product
+  and cut from it; this happens even when the planner did not ask for them. The cut is still loose (known limit).
+- **QA.** A panel the check refuses is made again once with the reason (generated views) or cut from a real photo
+  (close-ups). Then a vision model judges the finished sheet against the hierarchy; its findings are in `info` under
+  `gates.qa` and stop a `strict` run. The checks delete generated pictures only: their verdicts on real photos
+  changed from run to run, so a real photo is reported, never deleted.
 - **Hard gates.** The first automatic sheet showed a second colour of the product, panels that did not match their
   caption, parts cut in half, marketing text and food. Now: whole views take at least 40 % of the sheet and nothing is
   larger than the largest whole view; a subject cut off by the edge of its source photo is refused; every finished panel is
@@ -690,10 +732,13 @@ list of slots with the best photo for each; code frames every picture, packs the
 - **Known limits.** The control close-up is still cut from the front photograph by an LLM box (bounded, then fitted by
   looking at the result): it can include more than the controls. The automatic plan finds fewer open states than a
   hand-made one. A saved `sheet_plan_<mode>.json` can be edited by hand and is reused while `reuse_plan` is on.
-- **Inputs:** `product_dir`, `api_key` - optional: `mode`, `max_generated` (5; each new view is one GPT Image 2.5 Sunburst
+- **Inputs:** `product_dir`, `api_key` - optional: `mode`, `max_generated` (6; each new view is one GPT Image 2.5 Sunburst
   call at quality high), `isolate_busy_photos`, `size`, `llm_model`, `check_model`, `reuse_plan`, `strict`, `include_parts`
-- **Outputs:** `sheet` (IMAGE), `product_info` (STRING), `info` (STRING, JSON: gates, notes, panels)
-- **Saved in `product_dir`:** `sheet_<mode>.png`, `sheet_<mode>_info.json`, `sheet_plan_<mode>.json`, `generated/`
+- **Outputs:** `sheet` (IMAGE), `product_info` (STRING), `info` (STRING, JSON: gates with the QA findings, notes,
+  panels), `scene_prompt` (STRING: one scene of the product in real use, for the render step)
+- **Saved in `product_dir`:** `sheet_<mode>.png`, `sheet_<mode>_info.json`, `sheet_plan_<mode>.json`, `generated/`,
+  `clean/` (photos with the background removed)
+- **After changing the photos in a folder,** turn `reuse_plan` off once: a saved plan is reused as it is.
 
 #### Product Sheet (one step) (`SupersideProductSheetAutoNode`)
 Research and Sheet in a single node, for when nobody needs to look at the photos in between: photo in, sheet and PRODUCT
@@ -701,7 +746,8 @@ INFO out. It researches only when the folder has not been researched yet (or `re
 rebuilds the sheet without searching again. Prefer the two separate nodes when the photos should be reviewed first.
 - **Inputs:** `api_key` - optional: `image`, `product_hint`, `source_urls`, `output_dir`, `mode`, `max_generated`,
   `redo_research`, `strict`
-- **Outputs:** `sheet` (IMAGE), `product_info` (STRING), `product_dir` (STRING), `report` (STRING)
+- **Outputs:** `sheet` (IMAGE), `product_info` (STRING), `product_dir` (STRING), `report` (STRING),
+  `scene_prompt` (STRING)
 
 #### Product Video Reference (`SupersideProductVideoReferenceNode`)
 Optional step 3, for video models that accept a video reference. Finds videos of the product in use (your links, or a

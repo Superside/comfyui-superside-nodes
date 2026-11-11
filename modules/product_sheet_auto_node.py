@@ -17,8 +17,8 @@ class SupersideProductSheetAutoNode:
     """Identify, research, and build the sheet in one go."""
 
     CATEGORY = "Superside"
-    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("sheet", "product_info", "product_dir", "report")
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("sheet", "product_info", "product_dir", "report", "scene_prompt")
     FUNCTION = "run"
     DISPLAY_NAME = "Product Sheet (one step)"
     DESCRIPTION = (
@@ -52,7 +52,7 @@ class SupersideProductSheetAutoNode:
         researched = bool(folder) and os.path.isfile(os.path.join(folder, "image_tags.json"))
         report = f"reused the researched folder {folder}"
         if redo_research or not researched:
-            folder, _info, _contact, report = SupersideProductResearchNode().research(
+            folder, _info, _contact, report, _scene = SupersideProductResearchNode().research(
                 api_key, image=image, product_hint=product_hint, source_urls=source_urls, output_dir=folder)
-        sheet, info, meta = SupersideProductSheetNode().build(folder, api_key, mode=mode, max_generated=max_generated, strict=strict)
-        return (sheet, info, folder, report + "\n\n" + meta)
+        sheet, info, meta, scene = SupersideProductSheetNode().build(folder, api_key, mode=mode, max_generated=max_generated, strict=strict)
+        return (sheet, info, folder, report + "\n\n" + meta, scene)

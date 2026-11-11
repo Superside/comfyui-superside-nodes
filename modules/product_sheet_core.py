@@ -107,19 +107,36 @@ Answer one JSON object:
   "name": "what the maker calls it", "colour": "colour / finish of this unit, e.g. brushed stainless steel", "category": "short product category, e.g. countertop oven, drip coffee maker, cookware set",
   "confidence": "high | medium | low", "alternatives": ["other models of the same maker that look the same in this photo"],
   "search": "the best web search query to find this exact product"}}
+If a link is given, the product is the one on that link: when the photo shows something else, describe the link's
+product and add "photo_matches": false.
 Makers sell near-identical models under different numbers. Say "high" only if the model number is printed in the photo or
 given by the user; if you recognise the product line but cannot tell the models apart, say "low" and list them."""
 
 SEARCH = """Find up to {n} web pages that show product photos of this exact product: {query}.
-Prefer the maker's regional sites, large retailers and hands-on reviews with their own photos. One page per site.
+Wanted this time: {focus}. One page per site, each from a different site.
+Leave out the big marketplaces and chains whose pages cannot be read by a script (Amazon, Walmart, Target, Wayfair,
+Best Buy, Home Depot, Lowe's, Macy's, eBay){exclude}.
 Answer with a JSON list of URLs only."""
 
 TAG = """PRODUCT: {name} ({category}), colour / finish: {colour}
 You get {n} photos collected for this product, in this order: {names}
 For EACH photo answer one object:
 - "image": the file name exactly as given
-- "view": "front", "3/4 left", "3/4 right", "side", "top", "interior", "part alone", "detail close-up", "in use",
-  "set together", "infographic" or "not the product"
+- "view": the category of the photo, exactly one of:
+  "front", "3/4 left", "3/4 right", "side", "back", "top" - the whole product alone, from that angle;
+  "set together" - the product with its accessories, or all pieces of a set;
+  "part alone" - one or more accessories or removable parts without the product;
+  "controls close-up" - the buttons, switches, dials or display fill most of the picture;
+  "logo close-up" - the brand logo or model name on the product fills most of the picture;
+  "detail close-up" - another part of the product seen close;
+  "interior" - the product open, showing its inside;
+  "in hand" - a hand holds the product and little else is in the picture;
+  "in use" - a person is using it;
+  "packaging" - the box, closed or open;
+  "infographic" - mostly added text, callouts, charts or several pictures in one;
+  "not the product"
+- "angle": the angle the main product is seen from, whatever else is in the picture: "front", "3/4 left",
+  "3/4 right", "side", "back", "top", or "none" if the main product is not in the picture
 - "state": what is open, pulled out, removed or switched on, in a few words; "" if nothing
 - "parts": the parts clearly visible, in plain words
 - "desc": one plain sentence, at most 14 words
@@ -146,19 +163,86 @@ Describe this unit only ({colour}); ignore other colours or models that appear i
 No markdown, no bullets, at most 2200 characters."""
 
 
+def lookup_link(call, url):
+    """What a product link sells, asked of a model with web search - for pages a script cannot read."""
+    try:
+        return llm(call, SEARCH_MODEL, "Which exact product is sold on this page? Give brand, model number and product name in one "
+                                       f"line, nothing else. If you cannot tell, answer: unknown.\n{url}", max_tokens=200).strip()[:240]
+    except Exception:
+        return ""
+
+
+def lookup_photo(call, image):
+    """Brand and model of the product in a photo, asked of a vision model with web search - for photos with no visible name."""
+    try:
+        return llm(call, SEARCH_MODEL, "Search the web for the exact product shown in this photo. Give brand, model number and "
+                                       "product name in one line, nothing else. If you are not sure it is that exact product, "
+                                       "answer: unknown.", [data_url(image, 1024)], max_tokens=200).strip()[:240]
+    except Exception:
+        return ""
+
+
 def identify(call, image, hint, model):
     hint_txt = f" (the user says: {hint})" if hint else ""
     return parse_json(llm(call, model, IDENTIFY.format(hint=hint_txt), [data_url(image, 1024)], max_tokens=600))
 
 
-def search_pages(call, query, n=8):
+SEARCH_FOCUS = ("the maker's own sites in several countries (.com, .ca, .co.uk, .com.au ...) and specialist or regional retailers",
+                "hands-on reviews, unboxings, comparison tests and blog posts that show their own photos of the product",
+                "smaller online shops, kitchen or appliance specialists, price-comparison and manual / spare-parts sites")
+
+
+def search_pages(call, query, n=8, exclude_hosts=(), round_no=1):
+    exclude = (" and these sites, already tried: " + ", ".join(sorted(exclude_hosts))) if exclude_hosts else ""
     try:
-        urls = parse_json(llm(call, SEARCH_MODEL, SEARCH.format(n=n, query=query), max_tokens=1500))
+        urls = parse_json(llm(call, SEARCH_MODEL, SEARCH.format(n=n, query=query, exclude=exclude, focus=SEARCH_FOCUS[(round_no - 1) % 3]), max_tokens=1500))
     except Exception as e:
         logger.warning("search failed: %s", e)
         return []
     out = [u for u in urls if isinstance(u, str) and u.startswith("http")]
     return out[:n]
+
+
+# sites that state they do not allow automated agents: nothing is fetched from them, pages or image servers
+REFUSED_HOSTS = ("amazon.", "media-amazon.", "ssl-images-amazon.")
+IMAGE_QUERIES = ("{q}", "{q} in use in hand", "{q} buttons controls close up", "{q} open inside parts")
+
+
+def search_images(query, per_query=60, min_side=700, patterns=None):
+    """Image results for a product from the open-source ddgs metasearch (no key). Returns (results, note); each result
+    is {"image", "page", "title"}. Needs the 'ddgs' package: without it the list is empty and the note says so."""
+    try:
+        from ddgs import DDGS
+    except Exception:
+        return [], "image search skipped: the 'ddgs' package is not installed (run: pip install ddgs)"
+    host = lambda u: urllib.parse.urlparse(u or "").netloc.lower()      # noqa: E731
+    out, seen, refused, small, errors = [], set(), 0, 0, 0
+    engine = DDGS()
+    for pattern in (patterns or IMAGE_QUERIES):
+        try:
+            found = engine.images(pattern.format(q=query), max_results=per_query, size="Large")
+        except Exception as e:
+            logger.warning("image search failed: %s", e)
+            errors += 1
+            continue
+        for r in found or []:
+            img, page = r.get("image") or "", r.get("url") or ""
+            if not img.startswith("http") or img in seen:
+                continue
+            seen.add(img)
+            if any(t in host(img) or t in host(page) for t in REFUSED_HOSTS):
+                refused += 1
+                continue
+            try:
+                known = max(int(r.get("width") or 0), int(r.get("height") or 0))
+            except Exception:
+                known = 0
+            if known and known < min_side:
+                small += 1
+                continue
+            out.append({"image": img, "page": page, "title": (r.get("title") or "")[:120]})
+    note = f"image search: {len(out)} candidates ({small} too small, {refused} on sites that refuse automated access"
+    return out, note + (f", {errors} searches failed)" if errors else ")")
 
 
 def model_tokens(model):
@@ -186,11 +270,20 @@ def page_images(url, tokens):
         return [], ""
     html = html.replace("\\/", "/").replace("&amp;", "&")
     found = re.findall(r"https?://[^\"'\s\\)<>]+?\.(?:jpe?g|png|webp)(?:\?[^\"'\s\\)<>]*)?", html, re.I)
-    keep = []
+    junk = r"logo|icon|sprite|swatch|badge|thumb|avatar|banner|promo|footer|header|flag|payment|rating|star"
+    keep, others = [], []
     for u in found:
         low = urllib.parse.unquote(u).lower()
-        if any(t in low for t in tokens) and not re.search(r"logo|icon|sprite|swatch|badge|thumb", low):
-            keep.append(u)
+        if re.search(junk, low):
+            continue
+        (keep if any(t in low for t in tokens) else others).append(u)
+    # images the page itself declares as the product's: og:image and schema.org "image" (their file names are often hashes)
+    declared = re.findall(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)', html, re.I)
+    for block in re.findall(r'"image"\s*:\s*(\[[^\]]{0,4000}\]|"[^"]+")', html):
+        declared += re.findall(r'https?://[^"\s\\]+', block)
+    keep += [u for u in declared if u not in keep]
+    if len(keep) < 4:                                   # nothing named after the model: take the page's other photos; the
+        keep += [u for u in others if u not in keep][:12]   # tagger decides later which of them show the product
     text = re.sub(r"<script.*?</script>|<style.*?</style>|<[^>]+>", " ", html, flags=re.S)
     return list(dict.fromkeys(keep)), re.sub(r"\s+", " ", text)[:6000]
 
@@ -201,15 +294,18 @@ def best_variant(url):
     return re.sub(r"/dw/image/v2/[A-Z_]+/on/", "/on/", u)
 
 
-def download_images(urls, out_dir, max_images, min_side=700, referer=None):
+def download_images(urls, out_dir, max_images, min_side=700, referer=None, seen=None, timeout=60):
+    """seen: a set shared between calls, so the same picture found on two sites is saved once."""
     os.makedirs(out_dir, exist_ok=True)
-    seen, saved = set(), []
+    seen, saved = (seen if seen is not None else set()), []
     for u in urls:
         if len(saved) >= max_images:
             break
         for cand in dict.fromkeys((best_variant(u), u)):
+            if any(t in urllib.parse.urlparse(cand).netloc.lower() for t in REFUSED_HOSTS):
+                break                                       # hosted by a site that refuses automated access
             try:
-                raw = fetch(cand, timeout=60, referer=referer)
+                raw = fetch(cand, timeout=timeout, referer=referer)
                 im = Image.open(io.BytesIO(raw))
                 im.load()
             except Exception:
@@ -229,10 +325,72 @@ def download_images(urls, out_dir, max_images, min_side=700, referer=None):
     return saved
 
 
+TAG_VERSION = 3          # 2 = categories for close-ups of controls and logo, in hand, back, packaging; 3 = angle (2026-11-11)
+
+# what a sheet is built from, in the order of its hierarchy: label, the views that belong to it, the search that finds more
+CATEGORIES = (
+    ("PRODUCT ALONE", ("front", "3/4 left", "3/4 right", "side", "top", "back"), "{q} product photo white background"),
+    ("CONTROLS CLOSE-UP", ("controls close-up",), "{q} buttons controls close up"),
+    ("LOGO CLOSE-UP", ("logo close-up",), "{q} logo close up"),
+    ("OTHER DETAILS", ("detail close-up", "interior"), ""),
+    ("ACCESSORIES", ("part alone",), "{q} attachments accessories parts"),
+    ("PRODUCT WITH ACCESSORIES", ("set together",), ""),
+    ("IN HAND", ("in hand",), "{q} held in hand"),
+    ("IN USE", ("in use",), ""),
+    ("PACKAGING", ("packaging",), ""),
+    ("INFOGRAPHICS", ("infographic",), ""),
+)
+
+
+def categorize(folder, tags):
+    """The photos of the product (its own colour and model) sorted into the categories a sheet is built from; inside a
+    category the photos with no added text come first, then the largest."""
+    out = {}
+    for label, views, _q in CATEGORIES:
+        keys = [k for k, t in tags.items() if t.get("view") in views and t.get("same_product") is not False and not k.startswith("generated/")]
+        out[label] = sorted(keys, key=lambda k: (tags[k].get("banner", "none") not in ("none", None), not tags[k].get("clean"),
+                                                 -min(Image.open(os.path.join(folder, k)).size)))
+    return out
+
+
+def best_of(folder, tags, view, used=()):
+    """The best photo of one category for a panel: no marketing text all over it, largest first."""
+    keys = [k for k, t in tags.items() if t.get("view") == view and t.get("same_product") is not False and not k.startswith("generated/")
+            and t.get("banner", "none") != "all over" and k not in used]
+    keys.sort(key=lambda k: (tags[k].get("banner", "none") not in ("none", None), -min(Image.open(os.path.join(folder, k)).size)))
+    return keys[0] if keys and min(Image.open(os.path.join(folder, keys[0])).size) >= 350 else None
+
+
+def category_sheet(folder, cats, cell=300, cols=8):
+    """One picture of everything found, grouped under the name of its category - so a person sees at a glance what the
+    sheet can be built from and what is missing."""
+    f, fh = font(15, bold=False), font(22)
+    rows = [(label, keys[:cols * 2]) for label, keys in cats.items()]
+    height = sum(46 + max(1, -(-len(keys) // cols)) * (cell + 26) for _l, keys in rows)
+    sheet = Image.new("RGB", (cols * cell, max(height, 200)), (24, 24, 24))
+    d = ImageDraw.Draw(sheet)
+    y = 0
+    for label, keys in rows:
+        total = len(cats[label])
+        d.text((8, y + 10), f"{label}  -  {total} photo{'s' if total != 1 else ''}" + ("" if total else "   (NONE FOUND)"),
+               fill=(255, 214, 90) if total else (255, 110, 90), font=fh)
+        y += 46
+        for i, rel in enumerate(keys):
+            im = Image.open(os.path.join(folder, rel)).convert("RGB")
+            im.thumbnail((cell - 8, cell - 8))
+            x, yy = (i % cols) * cell, y + (i // cols) * (cell + 26)
+            sheet.paste(im, (x + (cell - im.width) // 2, yy + (cell - im.height) // 2))
+            d.text((x + 6, yy + cell + 4), os.path.basename(rel)[:34], fill=(210, 210, 210), font=f)
+        y += max(1, -(-len(keys) // cols)) * (cell + 26)
+    return sheet
+
+
 def tag_images(call, folder, product, model, subfolders=("images",), batch=10):
     path = os.path.join(folder, "image_tags.json")
     tags = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
-    todo = [f"{s}/{f}" for s in subfolders for f in list_images(os.path.join(folder, s)) if f"{s}/{f}" not in tags]
+    tags = {k: v for k, v in tags.items() if os.path.exists(os.path.join(folder, k))}      # a deleted file leaves no tag behind
+    todo = [f"{s}/{f}" for s in subfolders for f in list_images(os.path.join(folder, s))
+            if f"{s}/{f}" not in tags or tags[f"{s}/{f}"].get("v") != TAG_VERSION]      # older tags lack the newer categories
     for i in range(0, len(todo), batch):
         part = todo[i:i + batch]
         names = ", ".join(f"{k + 1}) {os.path.basename(b)}" for k, b in enumerate(part))
@@ -250,6 +408,7 @@ def tag_images(call, folder, product, model, subfolders=("images",), batch=10):
                 g.pop("image", None)
                 if g.get("same_product") is False:
                     g["use"] = "skip"
+                g["v"] = TAG_VERSION
                 tags[b] = g
         json.dump(tags, open(path, "w", encoding="utf-8"), indent=1)
     return tags
@@ -265,6 +424,41 @@ def write_info(call, folder, product, tags, notes, model):
                 images, max_tokens=2500).strip()
     open(os.path.join(folder, "product_info.txt"), "w", encoding="utf-8").write(text + "\n")
     return text
+
+
+SCENE = """Write the SCENE of one photo of this product in real use, for an image model that already has the product's
+reference sheet. PRODUCT: {name} ({category}).
+
+PRODUCT INFO
+{info}
+
+Rules:
+- Where and how people really use this product at home or at work: the right room, the right surface or hand, the
+  product in a normal working state (on, open, in the hand, on the counter ...), doing what it is for.
+- It stands or is held the way it is in real use: upright, square to the wall if it sits on a surface, never rotated,
+  tilted or floating. Respect anything the product info says about safe placement.
+- One or two props that belong with it, without any brand name. If a person appears, only what is needed (a hand, or a
+  person seen from the side or behind), described plainly.
+- One familiar object or body part that shows its true size.
+- Say where the camera is, as someone taking the picture with a phone would stand.
+- Do not describe the product's own details (the sheet and the product info carry them) and do not describe lighting
+  or style. 60 to 110 words, plain sentences, no list, no title."""
+
+
+def write_scene(call, folder, product, info, model):
+    """One scene for the render step, written for this product, saved as scene_prompt.txt."""
+    text = llm(call, model, SCENE.format(name=f'{product.get("brand", "")} {product.get("model", "")} {product.get("name", "")}'.strip(),
+                                         category=product.get("category", ""), info=info or "(none)"), max_tokens=500).strip()
+    text = "SCENE: " + text.replace("SCENE:", "").strip()
+    open(os.path.join(folder, "scene_prompt.txt"), "w", encoding="utf-8").write(text + "\n")
+    return text
+
+
+def read_scene(call, folder, product, info, model):
+    path = os.path.join(folder, "scene_prompt.txt")
+    if os.path.exists(path):
+        return open(path, encoding="utf-8").read().strip()
+    return write_scene(call, folder, product, info, model)
 
 
 def contact_sheet(folder, rel_paths, cell=360, cols=6):
@@ -298,28 +492,48 @@ MODE: {mode}
   clean photograph exists. - "generated": generated views everywhere; photographs are references.
 At most {max_gen} NEW generated views (reusing a photo marked generated costs nothing and is preferred).
 
-THE SLOTS, in this order. Fill every slot that applies to this product; do not add other slots.
-A. WHOLE (2 or 3 slots, kind "whole", required): the complete product from the front, then from a three-quarter angle,
-   then (optional) from the other side. For a set of several pieces: all pieces together, then all pieces laid out apart.
-B. CONTROLS (kind "controls", required if the product has controls or printed labels): ONE close-up showing ALL
-   controls with every label, cut from the cleanest front photograph (never from a generated image). Add a second
+THE SLOTS, in order of importance. This order is the hierarchy of the sheet: what comes first is drawn largest.
+Fill every slot that applies to this product; do not add other slots.
+A. WHOLE (2 or 3 slots, kind "whole", required): slot 1 is THE PRODUCT ITSELF, ALONE - the main body without its
+   accessories, complete, from the front or a three-quarter angle. Slot 2: the product alone from another angle.
+   Each angle once: never two whole views from the same angle. A photo of the product WITH its accessories is not a
+   whole view when the product alone is available - the accessories have their own slot. For a set of equal pieces: all
+   pieces together, then all pieces laid out apart. Prefer photos on plain white; a photo on a coloured or graphic
+   background is a last choice (code cuts its background away).
+B. CONTROLS (kind "controls", required if the product has any button, switch, dial, display or printed label): ONE
+   close-up showing ALL controls with every label, cut from the cleanest REAL photograph of the whole product (never
+   from a photo marked GENERATED; the background does not matter, code removes it). Add a second
    "controls" slot only for a small control group that is easy to miss (an indicator light, a single button apart from
-   the rest). Never more than 2 controls slots, never two cuts of the same controls.
-C. STATES (kind "state", required if the product opens or has removable parts): the product OPEN is the most important
-   panel after the whole views - one slot for the whole product open (door open, lid up, part pulled out), and one for a
-   closer view of the open area. Add a slot for a part removed only if that changes how the product looks.
-D. PARTS (kind "part"): {parts_rule}
-E. DETAILS (kind "detail", optional, at most 2): only something a model would get wrong and no other panel shows.
-   Never a plain surface, a base, feet, or the logo when it is already readable in the controls close-up.
+   the rest). Never more than 2 controls slots, never two cuts of the same controls. Only if no photograph can give
+   it: a generated close-up (say how many buttons, their shape, order and icons, as the product info describes them).
+C. STATES (kind "state", required if the product opens): the product OPEN - one slot for the whole product open (door
+   open, lid up, part pulled out), and one for a closer view of the open area.
+D. LOGO (kind "detail", caption starting with "LOGO", required if the product carries a brand name, logo or model
+   name): ONE close-up of it, cut from a real photograph of the whole product (photo + crop).
+   DETAILS (kind "detail", at most 2 more): what makes this product recognisable and a model would get wrong - a
+   light ring, a display, an unusual vent or outlet. If the only photo of it has added text or props, ask for a
+   generated clean view from that photo. Never a plain surface, a base or feet.
+E. ACCESSORIES (kind "part"): {parts_rule}
+   Accessories matter less than the product: they are drawn smaller than it.
+F. IN USE (kind "use", required for anything held, worn or operated by hand): ONE panel of the product in a hand or
+   with a person, used the way it is meant to be, at true scale. This tells a model how big the product is and how
+   it is held. A photograph of a hand or person using it is right for this slot (it does not have to be "clean"),
+   as long as it has no added text or graphics; otherwise ask for a generated view (say which hand, which grip).
+Every button, switch and indicator named in the product info must be visible in a controls or detail slot.
 Fewer, larger panels are better: 6 to 9 slots in total.
+
+FILL EACH SLOT FROM ITS OWN CATEGORY FIRST. The listing gives every photo's category. Controls: a "controls close-up"
+photo. Logo: a "logo close-up" photo. In use: an "in hand" photo, else an "in use" photo. Accessories: a "part alone"
+photo. Whole: "front", "3/4", "side" photos. Only when a category has no usable photo, cut the close-up from a photo
+of the whole product, and only when that is impossible too, ask for a generated view.
 
 HOW TO FILL A SLOT - exactly one of:
 - "photo": the number of a photo that shows exactly this, whole and uncut. For kinds whole / state / part the photo must
   be clean (no food, props, hands, added text). Never give a crop for these: code frames the product.
-- "photo" + "crop": ONLY for kind "controls" (and "detail" cut from a clean whole-product photograph on white):
+- "photo" + "crop": ONLY for kind "controls" (and "detail") cut from a clean photograph of the whole product:
   fractions [x0, y0, x1, y1] of that photo, a little loose, containing every control named.
 - "generate": {{"what": "one sentence, exactly what to show", "refs": [1 to 3 photo numbers that show it best],
-  "wide": false}} - not allowed for kind "controls", not allowed in real mode.
+  "wide": false}} - for kind "controls" only when no photograph shows them; not allowed in real mode.
 - "missing": true - when none of the above is possible. A missing slot is acceptable; a wrong picture is not.
 Never use two slots for the same thing. Never crop an infographic or a photo of several parts.
 When several photos show the same thing equally well, take the one with the most pixels.
@@ -331,15 +545,93 @@ Answer one JSON object and nothing else:
             {{"kind": "state", "caption": "DOOR OPEN", "generate": {{"what": "...", "refs": [3, 7], "wide": false}}}},
             {{"kind": "part", "caption": "CRUMB TRAY", "missing": true}}]}}"""
 
-KIND_ROLE = {"whole": "hero", "controls": "view", "state": "view", "part": "detail", "detail": "detail"}
+KIND_ROLE = {"whole": "hero", "controls": "view", "state": "view", "use": "view", "part": "detail", "detail": "detail"}
 WHOLE_VIEWS = ("front", "3/4 left", "3/4 right", "side", "top", "set together")
+
+
+LOCATE = """This is a photograph of {name} with a numbered grid drawn over it ({cols} columns, {rows} rows; the number
+is in the top-left corner of each cell). Find: {what}.
+Which cells does it sit in? One thing: one group of cells. Things far apart on the product (a button on the front, a
+switch on the side): one group per place, at most {n} groups. Give only cells where it is really visible; a group is
+{size}.
+Answer one JSON object: {{"groups": [[12, 13], [27]]}}, or {{"groups": []}} if it is not clearly visible in this photograph."""
+
+
+def _product_box(im, tol=16):
+    """Where the product is in a photo on a plain background (the whole frame otherwise), in pixels."""
+    rgb = im.convert("RGB")
+    diff = ImageChops.difference(rgb, Image.new("RGB", rgb.size, rgb.getpixel((2, 2)))).convert("L")
+    box = diff.point(lambda v: 255 if v > tol else 0).getbbox()
+    return box if box and (box[2] - box[0]) > 0.2 * im.width and (box[3] - box[1]) > 0.2 * im.height else (0, 0, im.width, im.height)
+
+
+def locate_in_photo(call, folder, photos, name, what, model, min_px=130, grow=0.3, max_share=0.2, n=2, cols=6, rows=7, max_cells=6):
+    """Find a named thing (the controls, the logo, a detail) in a real photograph of the whole product, so close-ups
+    can be cut from real pixels. An image model asked for a close-up from whole-product references returns the whole
+    product again, so close-ups are cut, not generated (first seen on a hair dryer, 2026-11-11).
+
+    The model is not asked for coordinates: its boxes are 5-10 % off, which misses a small button altogether. A
+    numbered grid is drawn over the product and it names the cells - a choice, not a measurement. Each group of cells
+    becomes one tight cut; a cut that covers a large share of the photo is refused (that is the whole view again).
+    Returns (photo, [boxes as fractions]) or (None, [])."""
+    for rel in photos:
+        try:
+            im = Image.open(os.path.join(folder, rel)).convert("RGB")
+            px0, py0, px1, py1 = _product_box(im)
+            cw, ch = (px1 - px0) / cols, (py1 - py0) / rows
+            view = im.crop((px0, py0, px1, py1))
+            scale = 1500 / max(view.size)
+            view = view.resize((max(1, round(view.width * scale)), max(1, round(view.height * scale))), Image.LANCZOS)
+            d = ImageDraw.Draw(view)
+            f = font(max(16, view.width // 46))
+            for c in range(1, cols):
+                d.line([(c * view.width / cols, 0), (c * view.width / cols, view.height)], fill=(255, 40, 40), width=2)
+            for r in range(1, rows):
+                d.line([(0, r * view.height / rows), (view.width, r * view.height / rows)], fill=(255, 40, 40), width=2)
+            for r in range(rows):
+                for c in range(cols):
+                    x, y = c * view.width / cols + 5, r * view.height / rows + 3
+                    label = str(r * cols + c + 1)
+                    d.rectangle([x - 2, y - 1, x + f.getlength(label) + 3, y + f.size + 3], fill=(255, 255, 255))
+                    d.text((x, y), label, fill=(220, 0, 0), font=f)
+            got = parse_json(llm(call, model, LOCATE.format(name=name, what=what, n=n, cols=cols, rows=rows,
+                                                          size="1 to 4 neighbouring cells" if max_cells <= 6 else "every cell it covers"),
+                                 [data_url(view, 1500, 88)], max_tokens=600))
+        except Exception as e:
+            logger.warning("locate failed on %s: %s", rel, e)
+            continue
+        boxes = []
+        for group in (got.get("groups") or [])[:n]:
+            cells = [int(v) - 1 for v in group if isinstance(v, (int, float)) and 1 <= int(v) <= cols * rows][:max_cells]
+            if not cells:
+                continue
+            c0, c1 = min(v % cols for v in cells), max(v % cols for v in cells) + 1
+            r0, r1 = min(v // cols for v in cells), max(v // cols for v in cells) + 1
+            x0, y0, x1, y1 = px0 + c0 * cw, py0 + r0 * ch, px0 + c1 * cw, py0 + r1 * ch
+            gw, gh = grow * (x1 - x0) / max(1, c1 - c0), grow * (y1 - y0) / max(1, r1 - r0)     # a margin of part of one cell
+            x0, y0, x1, y1 = max(0, x0 - gw), max(0, y0 - gh), min(im.width, x1 + gw), min(im.height, y1 + gh)
+            if (x1 - x0) * (y1 - y0) <= max_share * im.width * im.height and min(x1 - x0, y1 - y0) >= min_px:
+                boxes.append([x0 / im.width, y0 / im.height, x1 / im.width, y1 / im.height])
+        if boxes:
+            return rel, boxes
+    return None, []
+
+
+def real_whole_photos(folder, tags, keys):
+    """Clean real photographs that show the whole product: the product alone first (a close-up is cut from the
+    PRODUCT ALONE category; in a photo of the product with its accessories it is smaller and other things get into
+    the cut), then the largest."""
+    ok = [k for k in keys if tags.get(k, {}).get("view") in WHOLE_VIEWS and tags[k].get("clean") and not tags[k].get("generated")
+          and not k.startswith("generated/") and tags[k].get("same_product") is not False]
+    return sorted(ok, key=lambda k: (tags[k].get("view") == "set together", -min(Image.open(os.path.join(folder, k)).size)))
 
 
 def candidates(tags, mode="mixed"):
     order = {"hero": 0, "view": 1, "detail": 2, "reference": 3}
     keys = [k for k, v in tags.items() if v.get("use") in order and v.get("same_product") is not False
             and not (mode == "real" and v.get("generated"))]
-    return sorted(keys, key=lambda k: (order[tags[k]["use"]], not tags[k].get("clean"), k))[:36]
+    first = ("controls close-up", "logo close-up", "in hand")          # scarce categories are never pushed out of the list
+    return sorted(keys, key=lambda k: (tags[k].get("view") not in first, order[tags[k]["use"]], not tags[k].get("clean"), k))[:36]
 
 
 def plan_sheet(call, folder, product, tags, info, mode, max_gen, model, include_parts=False):
@@ -351,11 +643,15 @@ def plan_sheet(call, folder, product, tags, info, mode, max_gen, model, include_
                         f'{tags[k].get("desc", "")}' for i, k in enumerate(cands))
     plan = parse_json(llm(call, model, PLAN.format(name=f'{product.get("brand", "")} {product.get("model", "")}'.strip(),
                                                    category=product.get("category", ""), info=info, listing=listing, mode=mode, max_gen=max_gen,
-                                                   parts_rule=("one slot per removable part or per piece of a set, each alone." if include_parts else
-                                                               "none, unless the product IS a set of pieces: then at most 3 slots, for the pieces with "
-                                                               "the most to get wrong.")),
+                                                   parts_rule=("one slot per accessory, removable part or piece of a set, each alone." if include_parts else
+                                                               "ONE slot showing all accessories / removable parts together, WITHOUT the product itself "
+                                                               "(a clean photo of them; if the only photo that shows them also shows the product, give "
+                                                               "that photo: code cuts the product away). "
+                                                               "If the product IS a set of pieces: at most 3 slots, for the pieces with the most to get wrong.")),
                           [data_url(contact_sheet(folder, cands), 2400, 85)], max_tokens=5000))
     slots, notes, seen, new_gen, n_controls = [], [], set(), 0, 0
+    whole_refs = real_whole_photos(folder, tags, cands)[:2]
+    name = f'{product.get("brand", "")} {product.get("model", "")} {product.get("name", "")}'.strip()
     for sl in plan.get("slots", []):
         kind = sl.get("kind") if sl.get("kind") in KIND_ROLE else "detail"
         cap = re.sub(r"[–—]", "-", str(sl.get("caption", ""))).upper()[:40]
@@ -369,16 +665,26 @@ def plan_sheet(call, folder, product, tags, info, mode, max_gen, model, include_
             crop = sl.get("crop")
             if crop and len(crop) == 4 and max(crop) > 1.001:
                 crop = [c / 10 for c in crop] if max(crop) <= 10 else None
-            plain_whole = t.get("clean") and t.get("background") == "white" and t.get("view") in WHOLE_VIEWS and not t.get("generated")
+            # any background: a coloured one is cut away before the close-up is cut (prepare_panel)
+            plain_whole = t.get("clean") and t.get("view") in WHOLE_VIEWS and not t.get("generated")
+            use_photo = kind == "use" and t.get("view") in ("in use", "in hand") and t.get("background") != "graphic" \
+                and t.get("banner", "none") in ("none", None)
+            closeup_photo = kind in ("controls", "detail") and t.get("view") in ("controls close-up", "logo close-up", "detail close-up") \
+                and t.get("banner", "none") != "all over"
+            if crop and (crop[2] - crop[0]) * (crop[3] - crop[1]) > 0.3:
+                notes.append(f"{cap}: crop refused (it covers most of the photo: that is the whole view again, not a close-up)")
+                crop, key = None, None
             if crop and not (kind in ("controls", "detail") and plain_whole):
                 notes.append(f"{cap}: crop refused (a close-up may only be cut from a clean whole-product photograph)")
                 crop = None
                 if kind == "controls":
                     key = None
-            if key and kind in ("whole", "state", "part") and not t.get("clean"):
+            if key and kind in ("whole", "state", "part", "use", "detail") and not t.get("clean") and not crop and not use_photo \
+                    and not closeup_photo:
                 notes.append(f"{cap}: photo refused (not clean)")
-                if kind != "whole" and mode != "real" and not gen:
-                    gen = {"what": f"{cap.lower()} - the same state as in the reference photo, but with nothing else in the picture",
+                if mode != "real" and not gen:
+                    gen = {"what": (f"{cap.lower()} - one hand holding the product as in the reference photo" if kind == "use" else
+                                    f"{cap.lower()} - the same state as in the reference photo, but with nothing else in the picture"),
                            "refs": [int(n)], "wide": False}
                     notes[-1] += " - a clean view will be generated from it"
                 key = None
@@ -387,13 +693,32 @@ def plan_sheet(call, folder, product, tags, info, mode, max_gen, model, include_
                 if n_controls > 2:
                     notes.append(f"{cap}: dropped (at most 2 control close-ups)")
                     continue
-            if key and kind == "controls" and not crop and not (t.get("view") == "detail close-up" and t.get("clean")):
+            if key and kind == "controls" and not crop and not closeup_photo:
                 notes.append(f"{cap}: photo refused (not a clean control close-up and no crop given)")
                 key = None
             if key and (key, tuple(crop or ())) not in seen:
                 seen.add((key, tuple(crop or ())))
                 out.update(image=key, crop=crop, generated=bool(t.get("generated")))
-        if "image" not in out and gen and mode != "real" and kind != "controls" and new_gen < max_gen:
+        if "image" not in out and (kind == "controls" or cap.startswith("LOGO")):
+            # the slot's own category first: a real close-up photograph beats any cut
+            key = best_of(folder, tags, "controls close-up" if kind == "controls" else "logo close-up", {k for k, _c in seen})
+            if key:
+                n_controls += kind == "controls"
+                gen = None
+                seen.add((key, ()))
+                out.update(image=key, crop=None, generated=False)
+                notes.append(f"{cap}: taken from the close-up photo {os.path.basename(key)}")
+        if "image" not in out and kind == "controls" and whole_refs and n_controls < 2:
+            # controls are mandatory, and a close-up is cut from a real photograph, never generated: find them in the
+            # largest real photo of the whole product
+            key, boxes = locate_in_photo(call, folder, whole_refs, name, f"all the controls ({cap.lower()}): every button, switch, dial, "
+                                         "display and indicator light, with their labels", model)
+            if key:
+                n_controls += 1
+                gen = None
+                out.update(image=key, crop=boxes[0], generated=False, crop_fitted=True, **({"crops": boxes} if len(boxes) > 1 else {}))
+                notes.append(f"{cap}: located in {os.path.basename(key)} and cut from it")
+        if "image" not in out and gen and mode != "real" and new_gen < max_gen:
             refs = [cands[int(r) - 1] for r in gen.get("refs", []) if isinstance(r, (int, float)) and 1 <= int(r) <= len(cands)][:3]
             if refs and gen.get("what"):
                 new_gen += 1
@@ -439,19 +764,44 @@ def gate_report(slots, built, rows, size):
     controls = [r for r in rows if r.get("kind") == "controls"]
     if controls and max(r["box"][2] for r in controls) < 0.3 * size and max(r["scale"] for r in controls) < 0.6:
         fatal.append("G7: the control close-up is small: narrower than half the sheet and shown below its source size")
+    if any(area(r) > 0.8 * biggest_hero for r in rows if r.get("kind") == "part"):
+        fatal.append("G8: an accessory is drawn as large as the product itself")
     gone = [s for s in slots if s.get("missing") or s.get("dropped")]
+    required = [s["caption"] for s in gone if s["kind"] in ("controls", "use")
+                and not any(b.get("kind") == s["kind"] for b in built)]
+    required += [s["caption"] for s in gone if s["caption"].startswith("LOGO")
+                 and not any(re.search(r"LOGO|BADGE|BRAND", b.get("caption", "")) for b in built)]
+    if required:
+        fatal.append("G9: a required panel is missing: " + ", ".join(required))
     return {"hero_area": round(hero, 2), "panels": len(rows), "missing": [s["caption"] for s in gone],
-            "required_missing": [s["caption"] for s in gone if s["kind"] in ("whole", "controls")], "fatal": fatal}
+            "required_missing": required, "fatal": fatal}
 
 
 # ----------------------------------------------------------------------------- sheet: clean, generate
 
 GENERATE = ("Product reference photo for a catalogue. Show: {what}. "
+            "ONE single photograph showing one view of one thing: never a collage, a grid, several views, zoom bubbles, callout circles, lines or labels. The references may show more than is asked for (accessories, other views, a room): show ONLY what is asked. "
             "The reference images show the real product: reproduce it EXACTLY - same shape, proportions, materials, colours, "
             "every button, dial, display, printed label, logo, handle and marking, in the same places. Do not add, remove, "
             "restyle or relabel anything. No food, no liquid, no hands, no people, no props, no text overlay. Plain pure white "
             "background, soft even studio light, a soft neutral shadow under the product, the whole subject inside the frame "
             "with a small margin.")
+
+
+GENERATE_USE = ("Product reference photo for a catalogue. Show: {what}. "
+                "ONE single photograph showing one view of one thing: never a collage, a grid, several views, zoom bubbles, callout circles, lines or labels. The references may show more than is asked for (accessories, other views, a room): show ONLY what is asked. One adult hand and forearm hold the product the "
+                "way it is really used, fingers on the grip, at true scale: the product is neither enlarged nor shrunk next to "
+                "the hand. The reference images show the real product: reproduce it EXACTLY - same shape, proportions, "
+                "materials, colours, every button, display, printed label, logo and marking, in the same places. Do not add, "
+                "remove, restyle or relabel anything. No face, no props, no text overlay. Plain pure white background, soft "
+                "even studio light, the whole product and the hand inside the frame with a small margin.")
+
+
+def plain_background(im, light=226, share=0.88):
+    """True when the picture's border is plain white or near white - what every panel of a sheet must sit on."""
+    px = im.convert("RGB").resize((96, 96)).load()
+    border = [px[x, y] for x in range(96) for y in (0, 1, 94, 95)] + [px[x, y] for y in range(96) for x in (0, 1, 94, 95)]
+    return sum(1 for p in border if min(p) >= light and max(p) - min(p) <= 20) >= share * len(border)
 
 
 def trim_plain(im, tol=14, pad=0.03):
@@ -471,20 +821,36 @@ def banner_crop(im, where, share=0.2):
             "left": im.crop((int(w * share), 0, w, h)), "right": im.crop((0, 0, int(w * (1 - share)), h))}.get(where, im)
 
 
-def isolate(call, im):
-    """Background removal: the product's real pixels on white, trimmed to the product."""
+def isolate(call, im, trim=True):
+    """Background removal: the product's real pixels on white, trimmed to the product (trim=False keeps the frame)."""
     res = call(BG_REMOVE, {"image_url": data_url(im, quality=95)})
     cut = Image.open(io.BytesIO(fetch(res["image"]["url"], timeout=120))).convert("RGBA")
+    if cut.size != im.size:
+        cut = cut.resize(im.size, Image.LANCZOS)
     white = Image.new("RGBA", cut.size, (255, 255, 255, 255))
     white.alpha_composite(cut)
     box = cut.getchannel("A").point(lambda v: 255 if v > 8 else 0).getbbox()
-    return white.convert("RGB").crop(box) if box else im
+    return white.convert("RGB").crop(box) if (box and trim) else white.convert("RGB")
 
 
-def generate_view(call, folder, what, refs, wide=False):
+def isolated(call, folder, rel, im):
+    """The photo with its background removed, same frame, kept in clean/ so it is paid for once."""
+    path = os.path.join(folder, "clean", os.path.splitext(os.path.basename(rel))[0] + "_white.png")
+    if os.path.exists(path):
+        return Image.open(path).convert("RGB")
+    out = isolate(call, im, trim=False)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    out.save(path)
+    return out
+
+
+def generate_view(call, folder, what, refs, wide=False, kind=None, feedback=""):
     size = {"width": 2048, "height": 1536} if wide else {"width": 2048, "height": 2048}
     urls = [data_url(Image.open(os.path.join(folder, r)), 1536, 90) for r in refs]
-    res = call(IMAGE_EDIT, {"prompt": GENERATE.format(what=what), "image_urls": urls, "image_size": size, "quality": "high",
+    prompt = (GENERATE_USE if kind == "use" else GENERATE).format(what=what)
+    if feedback:
+        prompt += f" An earlier attempt was rejected for this reason, fix exactly that: {feedback[:300]}"
+    res = call(IMAGE_EDIT, {"prompt": prompt, "image_urls": urls, "image_size": size, "quality": "high",
                             "num_images": 1, "output_format": "png"})
     return Image.open(io.BytesIO(fetch(res["images"][0]["url"], timeout=180))).convert("RGB")
 
@@ -531,19 +897,39 @@ def prepare_panel(call, folder, panel, tags, isolate_busy):
     """The image a panel shows: cropped by rule, never by the LLM's eye, except for close-up cuts."""
     im = Image.open(os.path.join(folder, panel["image"])).convert("RGB")
     t = tags.get(panel["image"], {})
-    crop = panel.get("crop")
-    if crop:
+    boxes = panel.get("crops") or ([panel["crop"]] if panel.get("crop") else [])
+    tiles = []
+    for crop in boxes:
         x0, y0, x1, y1 = [min(1.0, max(0.0, float(c))) for c in crop]
-        if x1 - x0 > 0.05 and y1 - y0 > 0.05:
-            px, py = (0.0, 0.0) if panel.get("crop_exact") else (0.02, (y1 - y0) * 0.08)   # a small safety margin unless hand-set
+        if x1 - x0 > 0.01 and y1 - y0 > 0.01:
+            if isolate_busy and not tiles and not plain_background(im):       # a close-up cut from a photo on colour: white first
+                try:
+                    im = isolated(call, folder, panel["image"], im)
+                except Exception as e:
+                    logger.warning("background removal failed for %s: %s", panel["image"], e)
+            px, py = (0.0, 0.0) if (panel.get("crop_exact") or panel.get("crop_fitted")) else (0.02, (y1 - y0) * 0.08)
             x0, y0, x1, y1 = max(0, x0 - px), max(0, y0 - py), min(1, x1 + px), min(1, y1 + py)
-            return im.crop((int(x0 * im.width), int(y0 * im.height), int(x1 * im.width), int(y1 * im.height)))
+            tiles.append(im.crop((int(x0 * im.width), int(y0 * im.height), int(x1 * im.width), int(y1 * im.height))))
+    if len(tiles) == 1:
+        return tiles[0]
+    if tiles:                                           # several groups of one thing, side by side at one height
+        h = max(t.height for t in tiles)
+        tiles = [t.resize((max(1, round(t.width * h / t.height)), h), Image.LANCZOS) for t in tiles]
+        gap = max(12, h // 14)
+        out = Image.new("RGB", (sum(t.width for t in tiles) + gap * (len(tiles) - 1), h), (255, 255, 255))
+        x = 0
+        for t in tiles:
+            out.paste(t, (x, 0))
+            x += t.width + gap
+        return out
     im = banner_crop(im, t.get("banner", "none"))
-    if t.get("background") in ("white", "graphic") and t.get("banner", "none") in ("none", None):
+    if plain_background(im):
         return trim_plain(im)
-    if isolate_busy and panel.get("kind") in ("whole", "state", "part") and t.get("view") not in ("interior", "detail close-up", "infographic"):
+    # anything else - a flat colour, a gradient, a room - is cut away: the product sits on white in every panel.
+    # In the in-use panel the hand or person stays and the room goes. Not for pictures with no outline to cut.
+    if isolate_busy and t.get("view") not in ("interior", "detail close-up", "controls close-up", "logo close-up", "infographic"):
         try:
-            return isolate(call, im)
+            return trim_plain(isolated(call, folder, panel["image"], im))
         except Exception as e:
             logger.warning("background removal failed for %s: %s", panel["image"], e)
     return im
@@ -551,13 +937,68 @@ def prepare_panel(call, folder, panel, tags, isolate_busy):
 
 VERIFY = """These {n} pictures are panels of a product reference sheet for: {name}. Their captions, in order: {caps}
 For each panel answer whether the caption is true for what the picture shows, and whether the picture is usable:
-not usable = the named part is cut off or missing, the picture shows a different part than the caption says, or it contains
-added marketing text, badges or callout dots. Answer one JSON object {{"panels": [{{"n": 1, "ok": true, "why": ""}}]}}."""
+not usable = the named part is cut off or missing, the picture shows a different part than the caption says, it shows
+more than the caption says (other parts, accessories, several views or a collage in one picture), or it contains added
+marketing text, badges, zoom bubbles or callout dots. A caption that names a close-up or one part (controls, buttons,
+an outlet, a grille, a badge, a display) is NOT true for a picture of the whole product seen from afar: the named thing
+must be the clear subject of the picture and large enough to read. A hand or a person is right in a panel captioned as in use / held. Answer one JSON object {{"panels": [{{"n": 1, "ok": true, "why": ""}}]}}."""
 
 
-def verify_panels(call, name, built, model):
-    """Drop panels whose picture does not match its caption. Returns (kept, dropped captions with the reason)."""
-    if len(built) < 2:
+def _box_of(slot):
+    boxes = slot.get("crops") or ([slot["crop"]] if slot.get("crop") else [])
+    if not boxes:
+        return None
+    return [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)]
+
+
+def _look(im):
+    import numpy as np
+    arr = np.asarray(im.convert("L").resize((48, 48)), dtype=np.float32)
+    arr = arr - arr.mean()
+    return arr / (float(np.linalg.norm(arr)) or 1.0)
+
+
+def drop_repeats(built, slots):
+    """No view twice (owner's rule, 2026-11-11: the same front view was on the sheet four times - once whole and three
+    times as loose "close-ups" cut from it). Panels are taken in the order of the hierarchy; a later panel is dropped
+    when it repeats one already kept:
+    - it is cut from a photo that is already shown whole, and the cut covers more than a quarter of that photo;
+    - it is cut from the same photo as another cut and they share most of their area;
+    - it simply looks the same as a kept panel.
+    Returns (kept, [(panel, reason)])."""
+    order = sorted(range(len(built)), key=lambda i: KIND_RANK.get(built[i].get("kind"), 3))
+    kept, gone = [], []
+    for i in order:
+        b = built[i]
+        box = _box_of(slots[b["slot"]]) if 0 <= b.get("slot", -1) < len(slots) else None
+        b["_box"], b["_look"] = box, _look(b["im"])
+        why = ""
+        for k in kept:
+            same_photo = k["source"] == b["source"] and not b.get("generated")
+            if same_photo and box and not k["_box"] and (box[2] - box[0]) * (box[3] - box[1]) > 0.25:
+                why = f'shows again most of the photo already used whole in "{k["caption"]}"'
+            elif same_photo and box and k["_box"]:
+                kb = k["_box"]
+                inter = max(0.0, min(box[2], kb[2]) - max(box[0], kb[0])) * max(0.0, min(box[3], kb[3]) - max(box[1], kb[1]))
+                small = min((box[2] - box[0]) * (box[3] - box[1]), (kb[2] - kb[0]) * (kb[3] - kb[1]))
+                if small and inter / small > 0.5:
+                    why = f'shows the same area of the same photo as "{k["caption"]}"'
+            if not why and float((b["_look"] * k["_look"]).sum()) > 0.9:
+                why = f'looks the same as "{k["caption"]}"'
+            if why:
+                break
+        if why:
+            gone.append((b, why))
+        else:
+            kept.append(b)
+    kept_ids = {id(b) for b in kept}
+    return [b for b in built if id(b) in kept_ids], gone
+
+
+def verify_panels(call, name, built, model, keep_min=3):
+    """Drop panels whose picture does not match its caption. Returns (kept, dropped captions with the reason).
+    keep_min=0 checks even a single panel (used when one panel is made again)."""
+    if len(built) < 2 and keep_min:
         return built, []
     caps = "; ".join(f'{i + 1}) {b["caption"].replace(" (GENERATED)", "")}' for i, b in enumerate(built))
     try:
@@ -567,9 +1008,14 @@ def verify_panels(call, name, built, model):
         logger.warning("panel check failed, keeping every panel: %s", e)
         return built, []
     bad = {int(g["n"]) - 1: g.get("why", "") for g in got if g.get("ok") is False}
+    bad = {i: why for i, why in bad.items() if 0 <= i < len(built)
+           and not (built[i].get("kind") == "whole" and not built[i].get("generated"))}
     kept = [b for i, b in enumerate(built) if i not in bad]
-    if len(kept) < 3:                                   # never let the check empty the sheet
+    if len(kept) < keep_min:                            # never let the check empty the sheet
         return built, []
+    for i, why in bad.items():
+        if 0 <= i < len(built):
+            built[i]["why"] = why
     return kept, [f'{built[i]["caption"]}: {why}' for i, why in bad.items()]
 
 
@@ -593,7 +1039,39 @@ def _splits(items, max_rows):
     return out
 
 
-AREA_WEIGHT = {"whole": 1.2, "controls": 1.9, "state": 1.6, "part": 0.8, "detail": 0.8}
+# the hierarchy of a sheet: the product itself, then its controls and details, then accessories, then the hand / person
+KIND_RANK = {"whole": 0, "controls": 1, "state": 2, "detail": 3, "part": 4, "use": 5}
+AREA_WEIGHT = {"whole": 1.6, "controls": 1.9, "state": 1.6, "detail": 1.2, "part": 0.6, "use": 1.0}
+
+QA = """You are the last check before a product reference sheet is delivered. PRODUCT: {name}. An image model will use
+this sheet as its only reference of the product, so judge it strictly. Panel captions, in order: {caps}
+
+What a good sheet is, in order of importance:
+1. The product itself, alone, complete, large and clear, on plain white. No coloured or graphic background anywhere.
+2. Close-ups of the product's own details: its buttons, switches, displays, labels, logo.
+3. Its accessories - present, complete, and clearly smaller than the product.
+4. The product in a hand or with a person, showing its true size.
+
+The title and the one-line note under it are part of the sheet format, not a problem. A panel marked (GENERATED) is
+allowed. The in-use panel shows a hand or a person: that is what it is for.
+
+Report only real problems, each with one of these codes:
+coloured_background, product_cut, artefact (smear, leftover shadow, damaged cut-out, distorted shape), accessory_too_large,
+no_controls_closeup, no_in_use, duplicate (two panels showing the same thing), wrong_caption, marketing_text,
+empty_space (a large blank area), product_unclear (the product alone is not the largest, clearest thing on the sheet).
+Answer one JSON object: {{"pass": true or false, "issues": [{{"panel": "the caption, or SHEET", "code": "...", "why": "one sentence"}}]}}"""
+
+
+def qa_sheet(call, name, sheet, captions, model):
+    """A vision model judges the finished sheet as a whole. Returns {"pass": bool, "issues": [...]}; on failure of the
+    call itself the sheet is not blocked and the answer says the check did not run."""
+    try:
+        got = parse_json(llm(call, model, QA.format(name=name, caps="; ".join(captions)), [data_url(sheet, 2000, 85)], max_tokens=1500))
+        issues = [i for i in got.get("issues", []) if isinstance(i, dict) and i.get("code")]
+        return {"pass": bool(got.get("pass")) and not issues, "issues": issues}
+    except Exception as e:
+        logger.warning("sheet QA failed to run: %s", e)
+        return {"pass": True, "issues": [], "not_run": str(e)[:200]}
 
 
 def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
@@ -607,8 +1085,8 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
     The earlier version gave each kind of panel its own rows and a fixed height share, which left a third of a sheet
     white around a single control panel (coffee maker, 2026-11-10).
     """
-    order = {"hero": 0, "view": 1, "detail": 2}
-    items = sorted(panels, key=lambda q: order.get(q["role"], 2))       # stable: plan order inside each role
+    order = {"hero": 0, "view": 2, "detail": 3}
+    items = sorted(panels, key=lambda q: KIND_RANK.get(q.get("kind"), order.get(q["role"], 3)))   # stable: plan order inside a kind
     n = len(items)
     asp = [q["im"].width / q["im"].height for q in items]
     cap = [q["im"].height * q.get("max_up", max_up) for q in items]
@@ -628,6 +1106,9 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
             continue
         nat = [(W - gap * (len(r) - 1) - 2 * pad * len(r)) / sum(asp[i] for i in r) for r in rows]
         nat = [min(h, max(cap[i] for i in r)) for h, r in zip(nat, rows)]          # never taller than its pictures can be drawn
+        if len(rows) > 1 or n > 3:                                                  # the product row owns at most half the sheet,
+            nat = [min(h, 0.52 * (H - fixed)) if any(items[i]["role"] == "hero" for i in r) else h    # so its details stay readable
+                   for h, r in zip(nat, rows)]
         f = min(1.0, (H - fixed) / sum(nat))
         hts = [h * f for h in nat]
         score = 0.0
@@ -644,6 +1125,21 @@ def layout(panels, W, H, gap, cap_h, max_up, pad=25, hero_weight=None):
             score *= 0.8                                                            # do not mix whole views with small details
         if min(hts) < 300:
             score *= 0.5
+        if min(hts) < 0.5 * max(hts):
+            score *= (min(hts) / (0.5 * max(hts))) ** 2                             # details are smaller than the product, not tiny
+        if any(b > a * 1.05 for a, b in zip(hts, hts[1:])):
+            score *= 0.3                                                            # rows follow the hierarchy: never taller further down
+        if any(len(r) == 1 and items[r[0]].get("kind") not in ("whole", "controls", "state") for r in rows) and n > 1:
+            score *= 0.4                                                            # no accessory, detail or in-use panel gets a row to itself
+        areas = {i: asp[i] * min(h, cap[i]) ** 2 for r, h in zip(rows, hts) for i in r}
+        product = max([areas[i] for i in areas if items[i].get("kind") == "whole"] or [0])
+        if product and any(areas[i] > 0.6 * product for i in areas if items[i].get("kind") == "part"):
+            score *= 0.4                                                            # an accessory never rivals the product
+        if product and any(areas[i] > 0.9 * product for i in areas if items[i].get("kind") in ("use", "detail")):
+            score *= 0.7
+        drawn = sum(asp[i] * min(h, cap[i]) ** 2 for r, h in zip(rows, hts) for i in r)
+        cells = sum((W - gap * (len(r) - 1) - 2 * pad * len(r)) * h for r, h in zip(rows, hts)) + (H - fixed - sum(hts)) * W
+        score *= (drawn / max(cells, 1.0)) ** 1.5                                   # white space is paid for
         if best is None or score > best[0]:
             best = (score, rows, hts)
     if best is None:

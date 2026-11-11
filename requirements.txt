@@ -3,3 +3,4 @@ pillow
 numpy
 torch
 requests
+ddgs>=9.0.0
